@@ -66,7 +66,7 @@ class Main_Translator:
         self.max_tokens = settings.get("max_tokens", 2048)
         self.min_p = settings.get("min_p", 0.05)
 
-     self.parallel_workers = settings.get("parallel_workers", 1)
+        self.parallel_workers = settings.get("parallel_workers", 1)
         self.chunk_size = settings.get("chunk_size", 10)
         self.max_retries = settings.get("max_retries", 3)
         self._lock = threading.Lock()
