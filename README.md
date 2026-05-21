@@ -5,7 +5,7 @@ A standalone LLM translation API server, spun off from [Sugoi Toolkit](https://w
 While LLMs still are still not perfect at translating, they're come a long way and are semi-readable now, especially when compared to Google Translate or DeepL. This project also isn't meant to be a replacement for UmaTL. Human translations will be better 99% of the time. This is more of a tool for those that want something translated ASAP
 
 <p align="center">
-  <img width="498" height="281" src="https://github.com/user-attachments/assets/6eb04525-a4fd-450c-beea-b40e10a3d9f7" />
+  <img width="498" height="281" src="https://github.com/user-attachments/assets/4fcbda9c-0e47-4765-8d3e-5657ff130957" />
 </p>
 
 ## AI Disclaimer
