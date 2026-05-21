@@ -8,6 +8,7 @@ def filter_text(extracted_text):
     result = re.sub(r"[''\u02bc\uFF07]", "'", result)
     result = re.sub(r"カ$", "", result)
     result = re.sub(r"987$", "?", result)
+    result = re.sub(r"~", "\uFF5E", result)
     result = re.sub(r"^:", "", result)
     return result
 
