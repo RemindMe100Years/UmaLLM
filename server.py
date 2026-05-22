@@ -441,13 +441,16 @@ class Main_Translator:
 
         return []
 
+    _CJK_PATTERN = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
+
     def _clean_translations(self, translations):
-        """Strip newlines, escape artifacts, and clean up translations."""
+        """Strip newlines, escape artifacts, CJK chars, and clean up translations."""
         cleaned = []
         for t in translations:
             t = t.replace("\n", " ").replace("\r", " ")
             t = re.sub(r"\\+", "", t)  # remove stray backslashes
             t = re.sub(r"\}}+", "}", t)  # fix doubled braces
+            t = self._CJK_PATTERN.sub("", t)  # remove CJK chars model copies from source
             t = re.sub(r"  +", " ", t).strip()
             cleaned.append(t)
         return cleaned
@@ -473,7 +476,11 @@ class Main_Translator:
         if isinstance(input_text, list):
             return self._process_batch_llm(input_text)
 
-        return self._process_single_line(input_text)
+        cleaned, result = self._process_single_line(input_text)
+        with self._lock:
+            self.messages.append({"role": "user", "content": input_text})
+            self.messages.append({"role": "assistant", "content": result})
+        return cleaned
 
     def _process_single_line(self, input_text):
         input_text = plugins.process_input_text(input_text)
@@ -501,13 +508,10 @@ class Main_Translator:
             if cleaned and cleaned.strip():
                 break
 
-        self.messages.append({"role": "user", "content": input_text})
-        self.messages.append({"role": "assistant", "content": result})
-
         logger.info("RAW: %s", input_text)
         logger.info("TRN: %s", cleaned)
 
-        return cleaned
+        return cleaned, result
 
     def _translate_chunk_with_context(self, batch):
         start_idx = batch['start']
@@ -585,12 +589,14 @@ class Main_Translator:
                 f"{ctx_after_block}"
             )
 
+        single_line_pairs = []
         if not translations or len(translations) != expected_count:
             logger.warning("CHUNK %d: Translation failed after %d retries — falling back to line-by-line", start_idx, self.max_retries)
             translations = []
             for line in processed_translate:
-                t = self._process_single_line(line)
+                t, r = self._process_single_line(line)
                 translations.append(t)
+                single_line_pairs.append((line, r))
         else:
             # Fix trivial lines individually — no need to re-translate the whole chunk
             bad_indices = [i for i in range(expected_count)
@@ -598,7 +604,14 @@ class Main_Translator:
             if bad_indices:
                 logger.info("CHUNK %d: Retranslating %d trivial line(s): %s", start_idx, len(bad_indices), bad_indices)
                 for i in bad_indices:
-                    translations[i] = self._process_single_line(processed_translate[i])
+                    t, r = self._process_single_line(processed_translate[i])
+                    translations[i] = t
+                    single_line_pairs.append((processed_translate[i], r))
+
+        with self._lock:
+            for inp, out in single_line_pairs:
+                self.messages.append({"role": "user", "content": inp})
+                self.messages.append({"role": "assistant", "content": out})
 
         cleaned = [plugins.process_output_text(t) for t in translations[:expected_count]]
         return start_idx, cleaned, processed_translate, result
@@ -649,12 +662,14 @@ class Main_Translator:
                 f"### LINES TO TRANSLATE ###\n{lines_text}"
             )
 
+        single_line_pairs = []
         if not translations or len(translations) != expected_count:
             logger.warning("BATCH_LLM: Translation failed after %d retries — falling back to line-by-line", self.max_retries)
             translations = []
             for line in processed_input:
-                t = self._process_single_line(line)
+                t, r = self._process_single_line(line)
                 translations.append(t)
+                single_line_pairs.append((line, r))
         else:
             # Fix trivial lines individually — no need to re-translate the whole batch
             bad_indices = [i for i in range(expected_count)
@@ -662,7 +677,14 @@ class Main_Translator:
             if bad_indices:
                 logger.info("BATCH_LLM: Retranslating %d trivial line(s): %s", len(bad_indices), bad_indices)
                 for i in bad_indices:
-                    translations[i] = self._process_single_line(processed_input[i])
+                    t, r = self._process_single_line(processed_input[i])
+                    translations[i] = t
+                    single_line_pairs.append((processed_input[i], r))
+
+        with self._lock:
+            for inp, out in single_line_pairs:
+                self.messages.append({"role": "user", "content": inp})
+                self.messages.append({"role": "assistant", "content": out})
 
         cleaned = [plugins.process_output_text(t) for t in translations[:len(processed_input)]]
         return cleaned
@@ -676,6 +698,7 @@ class Main_Translator:
             except queue.Empty:
                 with self._lock:
                     if done_event.is_set() and not remaining_batches:
+                        logger.info("Worker exiting (done=True, remaining=%d)", len(remaining_batches))
                         return
                 continue
 
@@ -691,14 +714,16 @@ class Main_Translator:
                 result = self._translate_chunk_with_context(batch)
                 start, translations, processed_input, raw_output = result
 
+                logger.info("CHUNK %d: _translate_chunk_with_context returned (got %d/%d translations, round=%d)", start_idx, len(translations), len(processed_input), my_round)
+
                 expected_count = len(processed_input)
-                is_good = (
-                    len(translations) == expected_count
-                    and not any(
-                        self._is_trivial(processed_input[i], translations[i])
-                        for i in range(expected_count)
-                    )
-                )
+                trivial_indices = [i for i in range(expected_count)
+                                   if self._is_trivial(processed_input[i], translations[i])]
+                is_good = (len(translations) == expected_count and not trivial_indices)
+
+                logger.info("CHUNK %d: is_good=%s, trivial_indices=%s", start_idx, is_good, trivial_indices)
+                for ti in trivial_indices:
+                    logger.info("  TRIVIAL[%d]: input=%s, output=%s", ti, processed_input[ti], translations[ti])
 
                 if is_good:
                     with self._lock:
@@ -710,11 +735,14 @@ class Main_Translator:
             except Exception as e:
                 logger.error("CHUNK %d: Exception: %s: %s", start_idx, type(e).__name__, e)
 
+            logger.info("CHUNK %d: entering retry check (round=%d)", start_idx, my_round)
             action = None
             with self._lock:
                 if start_idx in completed_batches:
+                    logger.info("CHUNK %d: already completed, skipping", start_idx)
                     continue
                 elif my_round < batch_retry_counts.get(start_idx, 0):
+                    logger.info("CHUNK %d: older round (%d < %d), skipping", start_idx, my_round, batch_retry_counts.get(start_idx, 0))
                     continue
 
                 current = batch_retry_counts.get(start_idx, 0)
@@ -725,6 +753,7 @@ class Main_Translator:
                     action = ('broadcast', current + 1)
 
             if action == 'error':
+                logger.info("CHUNK %d: max retries reached, marking as error", start_idx)
                 end_idx = batch['end']
                 errors = ["Error"] * (end_idx - start_idx)
                 processed_input = [plugins.process_input_text(t) for t in batch['translate_lines']]
@@ -733,6 +762,7 @@ class Main_Translator:
                     remaining_batches.discard(start_idx)
                 completed_q.put((start_idx, errors, processed_input))
             elif action == ('broadcast', new_round):
+                logger.info("CHUNK %d: broadcasting retry round %d", start_idx, new_round)
                 for _ in range(self.parallel_workers):
                     work_q.put({'batch': batch, 'retry_round': new_round})
 
@@ -768,9 +798,12 @@ class Main_Translator:
             ]
 
             done_event.set()
+            logger.info("done_event set, waiting for %d workers", len(futures))
 
-            for future in futures:
+            for i, future in enumerate(futures):
+                logger.info("Waiting for worker %d to finish...", i)
                 future.result()
+                logger.info("Worker %d finished", i)
 
         while not completed_q.empty():
             start_idx, translations, processed_input = completed_q.get()
