@@ -459,7 +459,9 @@ class Main_Translator:
         stripped = raw_out.strip()
         inp_chars = len(raw_in.replace(" ", ""))
         out_stripped = re.sub(r"[\.\-\!\?\,\:\;\x27\x60\~\u2014\u2013\(\)\[\]{}]", "", stripped)
-        if inp_chars > 20 and (len(out_stripped) == 0 or len(stripped) < 5):
+        if inp_chars > 10 and len(out_stripped) == 0:
+            return True
+        if inp_chars > 15 and len(stripped) < 8:
             return True
         cjk_pattern = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
         if cjk_pattern.search(stripped):
@@ -556,9 +558,10 @@ class Main_Translator:
             f"### FORMAT EXAMPLE (showing 2 of {expected_count} lines) ###\n"
             f"Input:\n--- 1/{expected_count} ---\nHello\n--- 2/{expected_count} ---\nWorld\n[... remaining {expected_count - 2} lines ...]\n\n"
             f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
-            f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
-            f"{ctx_before_block}"
-            f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
+          f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
+             f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements, even if it contains multiple sentences or phrases.**\n\n"
+             f"{ctx_before_block}"
+             f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
             f"{ctx_after_block}"
         )
 
@@ -579,15 +582,15 @@ class Main_Translator:
             if attempt >= self.max_retries - 1:
                 break
 
-            current_turn_prompt = (
-                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                f"{char_map}\n\n"
-                f"You produced {len(translations)} translations for {expected_count} lines. "
-                f"Output exactly {expected_count} translations.\n\n"
-                f"{ctx_before_block}"
-                f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
-                f"{ctx_after_block}"
-            )
+           current_turn_prompt = (
+                 f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
+                 f"{char_map}\n\n"
+                 f"You produced {len(translations)} translations for {expected_count} lines. "
+                 f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements.**\n\n"
+                 f"{ctx_before_block}"
+                 f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
+                 f"{ctx_after_block}"
+             )
 
         single_line_pairs = []
         if not translations or len(translations) != expected_count:
@@ -629,8 +632,9 @@ class Main_Translator:
             f"### FORMAT EXAMPLE (showing 2 of {expected_count} lines) ###\n"
             f"Input:\n--- 1/{expected_count} ---\nHello\n--- 2/{expected_count} ---\nWorld\n[... remaining {expected_count - 2} lines ...]\n\n"
             f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
-            f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
-            f"### LINES TO TRANSLATE ###\n{lines_text}"
+        f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
+             f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements, even if it contains multiple sentences or phrases.**\n\n"
+             f"### LINES TO TRANSLATE ###\n{lines_text}"
         )
 
         history = (
@@ -654,13 +658,13 @@ class Main_Translator:
             if attempt >= self.max_retries - 1:
                 break
 
-            batch_prompt = (
-                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                f"{char_map}\n\n"
-                f"You produced {len(translations)} translations for {expected_count} lines. "
-                f"Output exactly {expected_count} translations.\n\n"
-                f"### LINES TO TRANSLATE ###\n{lines_text}"
-            )
+           batch_prompt = (
+                 f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
+                 f"{char_map}\n\n"
+                 f"You produced {len(translations)} translations for {expected_count} lines. "
+                 f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements.**\n\n"
+                 f"### LINES TO TRANSLATE ###\n{lines_text}"
+             )
 
         single_line_pairs = []
         if not translations or len(translations) != expected_count:
