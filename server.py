@@ -1,4 +1,6 @@
 import json
+import logging
+import logging.handlers
 import os
 import re
 import queue
@@ -27,7 +29,7 @@ import time
 
 
 def _force_shutdown(signum=None, frame=None):
-    print("\n[SHUTDOWN] Signal received, forcing exit...")
+    logger.info("Signal received, forcing exit...")
     os._exit(0)
 
 
@@ -42,11 +44,74 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 CHARACTER_FILE = os.path.join(BASE_DIR, "data", "character_memory.json")
 
+# Setup logging — keeps 5 most recent logs in logs/ folder
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
+log_file = os.path.join(LOGS_DIR, "server.log")
+
+
+class _SensitiveFilter(logging.Filter):
+    """Redact API keys and other sensitive data from log messages."""
+    def __init__(self):
+        super().__init__()
+        self._patterns = []
+        self._path_pattern = re.compile(r'[A-Z]:\\[^:\s]*', re.IGNORECASE)
+
+    def load_sensitive_values(self, settings):
+        sensitive = settings.get("api_key")
+        if sensitive and isinstance(sensitive, str):
+            self._patterns.append(sensitive)
+
+    def filter(self, record):
+        msg = record.getMessage()
+        for pattern in self._patterns:
+            msg = msg.replace(pattern, "***REDACTED***")
+        msg = self._path_pattern.sub("***REDACTED***", msg)
+        record.msg = msg
+        record.args = None
+        return True
+
+
 with open(SETTINGS_FILE, "r", encoding="utf-8") as file:
     settings = json.load(file)
 
 port = settings["HTTP_port_number"]
 host = "0.0.0.0"
+
+# Setup logging — timestamped files, keeps 5 most recent
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
+timestamp = time.strftime("%Y%m%d_%H%M%S")
+log_file = os.path.join(LOGS_DIR, f"server_{timestamp}.log")
+
+# Clean up old logs — keep only 5 most recent
+log_files = sorted([f for f in os.listdir(LOGS_DIR) if f.startswith("server_") and f.endswith(".log")])
+for old_log in log_files[:-5]:
+    os.remove(os.path.join(LOGS_DIR, old_log))
+
+sensitive_filter = _SensitiveFilter()
+sensitive_filter.load_sensitive_values(settings)
+
+logger = logging.getLogger("TranslationServer")
+logger.setLevel(logging.INFO)
+logger.addFilter(sensitive_filter)
+
+formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+file_handler = logging.FileHandler(log_file, encoding="utf-8")
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
+
+# Prevent propagation to root logger (causes duplicate output)
+logger.propagate = False
+
+# Suppress litellm's own logging to prevent duplicate output
+logging.getLogger("litellm").setLevel(logging.CRITICAL)
+logging.getLogger("httpx").setLevel(logging.CRITICAL)
 
 
 class Main_Translator:
@@ -63,6 +128,8 @@ class Main_Translator:
         self.top_p = settings["top_p"]
         self.top_k = settings.get("top_k", 40)
         self.repetition_penalty = settings.get("repetition_penalty", 1.1)
+        self.frequency_penalty = settings.get("frequency_penalty", 0.5)
+        self.presence_penalty = settings.get("presence_penalty", 0.5)
         self.max_tokens = settings.get("max_tokens", 2048)
         self.min_p = settings.get("min_p", 0.05)
 
@@ -84,11 +151,70 @@ class Main_Translator:
         with open(CHARACTER_FILE, "r", encoding="utf-8") as f:
             self.character_memory = json.load(f).get("characters", {})
 
+        # Check if model supports structured output
+        self._supported_params = self._get_supported_params()
+        self._supports_json_schema = self._check_json_schema_support()
+
+    def _check_json_schema_support(self):
+        try:
+            from litellm import supports_response_schema
+            has_response_format = "response_format" in self._supported_params
+            has_schema = supports_response_schema(
+                model=self.model_name, custom_llm_provider=self._get_provider()
+            )
+            return has_response_format and has_schema
+        except Exception:
+            return False
+
+    def _get_supported_params(self):
+        try:
+            return litellm.get_supported_openai_params(
+                model=self.model_name, custom_llm_provider=self._get_provider()
+            )
+        except Exception:
+            return []
+
+    def _get_provider(self):
+        if "ollama" in self.model_name:
+            return "ollama"
+        if "lm_studio" in self.model_name:
+            return "lm_studio"
+        if "oobabooga" in self.model_name:
+            return "openai"
+        return None
+
+    def _build_json_schema(self, count):
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "translation_result",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "translations": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": count,
+                            "maxItems": count,
+                        }
+                    },
+                    "required": ["translations"],
+                    "additionalProperties": False,
+                },
+                "strict": True,
+            },
+        }
+
     def _build_char_instructions(self, input_text):
         instructions = set()
         search_text = (
             " ".join(input_text) if isinstance(input_text, list) else input_text
         )
+
+        matched_names = []
+        for original_jp in self.character_memory:
+            if original_jp in search_text:
+                matched_names.append(original_jp)
 
         for original_jp, raw_data in self.character_memory.items():
             char_data = self._substitute(raw_data)
@@ -107,11 +233,15 @@ class Main_Translator:
                 if match:
                     eng_nick, jp_nick = match.group(1).strip(), match.group(2).strip()
                     if jp_nick in search_text:
-                        instructions.add(f"- {jp_nick} -> {eng_nick}")
-                        found_this_char = True
+                        is_substring = any(jp_nick in mn and len(jp_nick) < len(mn) for mn in matched_names)
+                        if not is_substring:
+                            instructions.add(f"- {jp_nick} -> {eng_nick}")
+                            found_this_char = True
                 elif nick in search_text:
-                    instructions.add(f"- {nick} -> {nick}")
-                    found_this_char = True
+                    is_substring = any(nick in mn and len(nick) < len(mn) for mn in matched_names)
+                    if not is_substring:
+                        instructions.add(f"- {nick} -> {nick}")
+                        found_this_char = True
 
             if found_this_char:
                 instructions.add(
@@ -166,12 +296,12 @@ class Main_Translator:
 
         if m < n:
             missing = n - m
-            print(f"[REALIGN] Dropped {missing} translation(s), filling with last available")
+            logger.warning("REALIGN: Dropped %d translation(s), filling with last available", missing)
             out = list(translations) + [translations[-1]] * missing
             return out[:n]
 
         surplus = m - n
-        print(f"[REALIGN] Got {m} translations for {n} inputs, merging {surplus} surplus")
+        logger.info("REALIGN: Got %d translations for %d inputs, merging %d surplus", m, n, surplus)
 
         out = []
         i = 0
@@ -210,7 +340,7 @@ class Main_Translator:
             out.append("Error")
         excess = len(out) - n
         if excess > 0:
-            print(f"[REALIGN] Dropping {excess} excess translation(s)")
+            logger.warning("REALIGN: Dropping %d excess translation(s)", excess)
         return out[:n]
 
     def _build_batches(self, list_of_text):
@@ -241,17 +371,24 @@ class Main_Translator:
 
         return batches
 
-    def execute(self, messages):
-        api_params = {
-            "model": self.model_name,
-            "messages": messages,
+    def execute(self, messages, response_format=None):
+        api_params = {"model": self.model_name, "messages": messages}
+        param_map = {
             "temperature": self.temperature,
             "top_p": self.top_p,
             "top_k": self.top_k,
             "min_p": self.min_p,
             "repetition_penalty": self.repetition_penalty,
+            "frequency_penalty": self.frequency_penalty,
+            "presence_penalty": self.presence_penalty,
             "max_tokens": self.max_tokens,
         }
+        for key, value in param_map.items():
+            if key in self._supported_params:
+                api_params[key] = value
+
+        if response_format is not None:
+            api_params["response_format"] = response_format
 
         if any(
             name in self.model_name for name in ["ollama", "lm_studio", "oobabooga"]
@@ -269,72 +406,51 @@ class Main_Translator:
             .message.content
         )
 
-    def _flatten(self, s):
-        return " ".join(str(s).strip().split())
-
-    def _is_numbered_output(self, text):
-        """Detect if the LLM output numbered text instead of JSON."""
-        t = text.strip().strip('"[]')
-        return bool(re.match(r"^\s*\d+[.)\s]", t))
-
-    def _extract_json_array(self, raw_response, context_label="", expected_count=None):
+    def _parse_json_response(self, raw_response):
+        """Parse JSON response from structured output. Extracts the translations array."""
         text = raw_response.strip()
+        # Strip markdown code fences if present
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+        text = re.sub(r"\s*```\s*$", "", text, flags=re.MULTILINE)
+        text = text.strip()
 
-        for candidate in [re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE).strip(), text]:
-            cleaned = re.sub(r"\s*```\s*$", "", candidate, flags=re.MULTILINE)
-            try:
-                obj = json.loads(cleaned)
-                if isinstance(obj, list):
-                    if self._is_numbered_output(cleaned):
-                        return None
-                    if expected_count is None or len(obj) == expected_count:
-                        return [self._flatten(t) for t in obj]
-            except Exception:
-                pass
+        # Fix missing commas between adjacent strings: "str1" "str2" → "str1", "str2"
+        text = re.sub(r'"\s+"', '", "', text)
 
-        bracket_start = raw_response.index("[") if "[" in raw_response else -1
-        if bracket_start >= 0:
-            all_arrays = []
-            depth = 0
-            start = -1
-            for i, ch in enumerate(raw_response[bracket_start:], start=bracket_start):
-                if ch == "[":
-                    if depth == 0:
-                        start = i
-                    depth += 1
-                elif ch == "]":
-                    depth -= 1
-                    if depth == 0 and start >= 0:
-                        candidate = raw_response[start:i + 1]
-                        cleaned = re.sub(r"^```(?:json)?\s*", "", candidate, flags=re.MULTILINE)
-                        cleaned = re.sub(r"\s*```\s*$", "", cleaned, flags=re.MULTILINE)
-                        try:
-                            obj = json.loads(cleaned)
-                            if isinstance(obj, list):
-                                if self._is_numbered_output(cleaned):
-                                    return None
-                                all_arrays.append([self._flatten(t) for t in obj])
-                        except Exception:
-                            continue
-                        start = -1
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict) and "translations" in obj:
+                return self._clean_translations(obj["translations"])
+            if isinstance(obj, list):
+                return self._clean_translations(obj)
+        except Exception:
+            pass
 
-            if expected_count is not None and len(all_arrays) > 1:
-                for arr in all_arrays:
-                    if len(arr) == expected_count:
-                        return arr
-
-            if all_arrays:
-                return all_arrays[0]
-
-        if raw_response.lstrip().startswith("["):
-            try:
-                obj = json.loads(raw_response + "]")
-                if isinstance(obj, list):
-                    return [self._flatten(t) for t in obj]
-            except Exception:
-                pass
+        # Fallback: try to find a JSON object/array in the text
+        for pattern in [r"\{.*\}", r"\[.*\]"]:
+            match = re.search(pattern, text, re.DOTALL)
+            if match:
+                try:
+                    obj = json.loads(match.group(0))
+                    if isinstance(obj, dict) and "translations" in obj:
+                        return self._clean_translations(obj["translations"])
+                    if isinstance(obj, list):
+                        return self._clean_translations(obj)
+                except Exception:
+                    pass
 
         return []
+
+    def _clean_translations(self, translations):
+        """Strip newlines, escape artifacts, and clean up translations."""
+        cleaned = []
+        for t in translations:
+            t = t.replace("\n", " ").replace("\r", " ")
+            t = re.sub(r"\\+", "", t)  # remove stray backslashes
+            t = re.sub(r"\}}+", "}", t)  # fix doubled braces
+            t = re.sub(r"  +", " ", t).strip()
+            cleaned.append(t)
+        return cleaned
 
     def _is_trivial(self, raw_in, raw_out):
         stripped = raw_out.strip()
@@ -342,7 +458,6 @@ class Main_Translator:
         out_stripped = re.sub(r"[\.\-\!\?\,\:\;\x27\x60\~\u2014\u2013\(\)\[\]{}]", "", stripped)
         if inp_chars > 20 and (len(out_stripped) == 0 or len(stripped) < 5):
             return True
-        # Check for untranslated CJK characters (Japanese/Chinese/Korean)
         cjk_pattern = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
         if cjk_pattern.search(stripped):
             return True
@@ -373,15 +488,26 @@ class Main_Translator:
         history = (
             self.messages[-(self.context_lines * 2) :] if self.context_lines > 0 else []
         )
+        result = ""
+        schema = self._build_json_schema(1)
 
-        final_payload = history + [{"role": "user", "content": current_turn_prompt}]
-
-        result = self.execute(messages=final_payload)
+        for attempt in range(self.max_retries):
+            if attempt > 0:
+                logger.info("Single-line retry %d/%d", attempt + 1, self.max_retries)
+            final_payload = history + [{"role": "user", "content": current_turn_prompt}]
+            result = self.execute(messages=final_payload, response_format=schema)
+            parsed = self._parse_json_response(result)
+            cleaned = plugins.process_output_text(parsed[0]) if parsed else ""
+            if cleaned and cleaned.strip():
+                break
 
         self.messages.append({"role": "user", "content": input_text})
         self.messages.append({"role": "assistant", "content": result})
 
-        return plugins.process_output_text(result)
+        logger.info("RAW: %s", input_text)
+        logger.info("TRN: %s", cleaned)
+
+        return cleaned
 
     def _translate_chunk_with_context(self, batch):
         start_idx = batch['start']
@@ -403,104 +529,78 @@ class Main_Translator:
         char_instructions = self._build_char_instructions(processed_translate)
         char_map = "\n[CHARACTER GLOSSARY]:\n" + "\n".join(char_instructions) if char_instructions else ""
 
-        context_instructions = ""
+        ctx_before_block = ""
         if processed_ctx_before:
-            lines_str = "\n".join(
-                f"Line {start_idx - len(processed_ctx_before) + i}: {t}"
-                for i, t in enumerate(processed_ctx_before)
-            )
-            context_instructions += (
-                "\n--- PREVIOUS DIALOGUE (for context only) ---\n"
-                + lines_str + "--- END PREVIOUS ---\n"
-            )
-        if processed_ctx_after:
-            ctx_start = start_idx + len(processed_translate)
-            lines_str = "\n".join(
-                f"Line {ctx_start + i}: {t}"
-                for i, t in enumerate(processed_ctx_after)
-            )
-            context_instructions += (
-                "\n--- FOLLOWING DIALOGUE (for context only) ---\n"
-                + lines_str + "--- END FOLLOWING ---\n"
-            )
+            lines_str = "\n".join(f"> {t}" for t in processed_ctx_before)
+            ctx_before_block = (f"### CONTEXT BEFORE (preceding dialogue, for reference only) ###\n"
+                                f"{lines_str}\n\n")
 
-        translate_lines_text = "\n".join(
-            f"{i+1}. {t}" for i, t in enumerate(processed_translate)
-        )
+        ctx_after_block = ""
+        if processed_ctx_after:
+            lines_str = "\n".join(f"> {t}" for t in processed_ctx_after)
+            ctx_after_block = (f"\n\n### CONTEXT AFTER (succeeding dialogue, for reference only) ###\n"
+                               f"{lines_str}\n")
 
         expected_count = len(processed_translate)
+        translate_lines_text = "\n".join(
+            f"--- {i+1}/{expected_count} ---\n{t}" for i, t in enumerate(processed_translate)
+        )
 
         current_turn_prompt = (
             f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-            f"{char_map}{context_instructions}\n\n"
-            f"Translate ONLY the following {expected_count} numbered lines. "
-            f"The previous/following dialogue sections above are reference only.\n\n"
+            f"{char_map}\n\n"
+            f"### FORMAT EXAMPLE (showing 2 of {expected_count} lines) ###\n"
+            f"Input:\n--- 1/{expected_count} ---\nHello\n--- 2/{expected_count} ---\nWorld\n[... remaining {expected_count - 2} lines ...]\n\n"
+            f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
+            f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
+            f"{ctx_before_block}"
             f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
-            + f"\n\nOutput ONLY a valid JSON array of exactly {expected_count} strings.\n"
-            f"DO NOT output numbered text — output ONLY the JSON array.\n"
-            f'Format example: ["translation one", "translation two"]'
+            f"{ctx_after_block}"
         )
+
+        response_format = self._build_json_schema(expected_count) if self._supports_json_schema else None
 
         translations = []
         result = ""
-        numbered_rejected = False
         for attempt in range(self.max_retries):
+            if attempt > 0:
+                logger.info("CHUNK %d retry %d/%d (got %d/%d translations)", start_idx, attempt + 1, self.max_retries, len(translations), expected_count)
             final_payload = history + [{"role": "user", "content": current_turn_prompt}]
-            result = self.execute(messages=final_payload)
-            translations = self._extract_json_array(result, "", expected_count)
-
-            if translations is None:
-                numbered_rejected = True
-                translations = []
+            result = self.execute(messages=final_payload, response_format=response_format)
+            translations = self._parse_json_response(result)
 
             if len(translations) == expected_count:
-                bad_indices = [i for i in range(expected_count)
-                               if self._is_trivial(processed_translate[i], translations[i])]
-                if not bad_indices:
-                    break
+                break
 
             if attempt >= self.max_retries - 1:
                 break
 
-            numbered_warning = ""
-            if numbered_rejected:
-                numbered_warning = (
-                    "\n\nCRITICAL: You previously output numbered text (e.g. \"1. translation\\n2. translation\") "
-                    "wrapped in JSON brackets. THIS IS INVALID. Each translation must be a separate string in the array.\n"
-                )
-            if len(translations) != expected_count:
-                current_turn_prompt = (
-                    f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                    f"{char_map}{context_instructions}\n\n"
-                    f"Translate ONLY the following {expected_count} numbered lines.\n\n"
-                    f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
-                    + f"\n\nYou previously produced an output with the wrong number of elements. "
-                    f"The JSON array MUST contain exactly {expected_count} strings — no more, no fewer."
-                    + numbered_warning
-                    + f'\n\nCORRECT FORMAT EXAMPLE: ["translation one", "translation two"]'
-                )
-            else:
-                bad_nums = ", ".join(str(x + 1) for x in bad_indices)
-                current_turn_prompt = (
-                    f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                    f"{char_map}{context_instructions}\n\n"
-                    f"Translate ONLY the following {expected_count} numbered lines.\n\n"
-                    f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
-                    + f"\n\nYou previously produced incomplete translations for line(s): {bad_nums}. "
-                    f"Every line must have a complete translation — do NOT output just \"...\", em-dashes, or single punctuation marks.\n"
-                    f"The JSON array MUST contain exactly {expected_count} strings."
-                    + numbered_warning
-                )
+            current_turn_prompt = (
+                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
+                f"{char_map}\n\n"
+                f"You produced {len(translations)} translations for {expected_count} lines. "
+                f"Output exactly {expected_count} translations.\n\n"
+                f"{ctx_before_block}"
+                f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
+                f"{ctx_after_block}"
+            )
 
         if not translations or len(translations) != expected_count:
-            valid_trans = [t if t.strip() else "" for t in (translations or [])[:expected_count + 1]]
-            translations = self._realign_translations(processed_translate, valid_trans)
+            logger.warning("CHUNK %d: Translation failed after %d retries — falling back to line-by-line", start_idx, self.max_retries)
+            translations = []
+            for line in processed_translate:
+                t = self._process_single_line(line)
+                translations.append(t)
+        else:
+            # Fix trivial lines individually — no need to re-translate the whole chunk
+            bad_indices = [i for i in range(expected_count)
+                           if self._is_trivial(processed_translate[i], translations[i])]
+            if bad_indices:
+                logger.info("CHUNK %d: Retranslating %d trivial line(s): %s", start_idx, len(bad_indices), bad_indices)
+                for i in bad_indices:
+                    translations[i] = self._process_single_line(processed_translate[i])
 
         cleaned = [plugins.process_output_text(t) for t in translations[:expected_count]]
-        print(f"[CHUNK {start_idx}] Extracted {len(translations)}, returned {len(cleaned)}")
-        for i, (inp, raw, out) in enumerate(zip(processed_translate, translations, cleaned)):
-            if inp != raw[:len(inp)] or "\n" in raw:
-                print(f"  [{i+1}] IN: {inp[:60]}... | RAW: {raw[:80]}... | OUT: {out[:60]}...")
         return start_idx, cleaned, processed_translate, result
 
     def _process_batch_llm(self, list_of_text):
@@ -508,15 +608,15 @@ class Main_Translator:
         char_map = self.apply_character_memory(processed_input)
 
         expected_count = len(processed_input)
-        lines_text = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(processed_input))
+        lines_text = "\n".join(f"--- {i + 1}/{expected_count} ---\n{t}" for i, t in enumerate(processed_input))
+
         batch_prompt = (
             f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
             f"{char_map}\n\n"
-            f"Output ONLY a valid JSON array of exactly {expected_count} strings.\n"
-            f"The output array MUST have exactly {expected_count} elements — no more, no fewer.\n"
-            f"Do NOT split a single numbered line into multiple output strings.\n"
-            f"DO NOT output numbered text (e.g. \"1. translation\") — output ONLY the JSON array.\n"
-            f"Format example: [\"translation 1\", \"translation 2\"]\n\n"
+            f"### FORMAT EXAMPLE (showing 2 of {expected_count} lines) ###\n"
+            f"Input:\n--- 1/{expected_count} ---\nHello\n--- 2/{expected_count} ---\nWorld\n[... remaining {expected_count - 2} lines ...]\n\n"
+            f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
+            f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
             f"### LINES TO TRANSLATE ###\n{lines_text}"
         )
 
@@ -524,69 +624,47 @@ class Main_Translator:
             self.messages[-(self.context_lines * 2) :] if self.context_lines > 0 else []
         )
 
+        response_format = self._build_json_schema(expected_count) if self._supports_json_schema else None
+
         translations = []
         result = ""
-        numbered_rejected = False
         for attempt in range(self.max_retries):
+            if attempt > 0:
+                logger.info("BATCH_LLM retry %d/%d (got %d/%d translations)", attempt + 1, self.max_retries, len(translations), expected_count)
             final_payload = history + [{"role": "user", "content": batch_prompt}]
-            result = self.execute(messages=final_payload)
-            translations = self._extract_json_array(result, "", expected_count)
-
-            if translations is None:
-                numbered_rejected = True
-                translations = []
+            result = self.execute(messages=final_payload, response_format=response_format)
+            translations = self._parse_json_response(result)
 
             if len(translations) == expected_count:
-                bad_indices = [i for i in range(min(len(translations), len(processed_input)))
-                               if self._is_trivial(processed_input[i], translations[i])]
-                if not bad_indices:
-                    break
+                break
 
             if attempt >= self.max_retries - 1:
                 break
 
-            numbered_warning = ""
-            if numbered_rejected:
-                numbered_warning = (
-                    "\n\nCRITICAL: You previously output numbered text (e.g. \"1. translation\\n2. translation\") "
-                    "wrapped in JSON brackets. THIS IS INVALID. Each translation must be a separate string in the array.\n"
-                )
-            if len(translations) != expected_count:
-                batch_prompt = (
-                    f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                    f"{char_map}\n\n"
-                    f"You previously produced the wrong number of elements. "
-                    f"The JSON array MUST contain exactly {expected_count} strings.\n\n"
-                    f"### LINES TO TRANSLATE ###\n"
-                    + "\n".join(f"{i + 1}. {t}" for i, t in enumerate(processed_input))
-                    + numbered_warning
-                    + f'\n\nCORRECT FORMAT EXAMPLE: ["translation one", "translation two"]'
-                )
-            else:
-                bad_nums = ", ".join(str(x + 1) for x in bad_indices)
-                batch_prompt = (
-                    f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                    f"{char_map}\n\n"
-                    f"You previously produced incomplete translations for line(s): {bad_nums}. "
-                    f"Every line must have a complete translation — do NOT output just \"...\", em-dashes, or single punctuation marks.\n"
-                    f"The JSON array MUST contain exactly {expected_count} strings.\n\n"
-                    f"### LINES TO TRANSLATE ###\n"
-                    + "\n".join(f"{i + 1}. {t}" for i, t in enumerate(processed_input))
-                    + numbered_warning
-                )
+            batch_prompt = (
+                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
+                f"{char_map}\n\n"
+                f"You produced {len(translations)} translations for {expected_count} lines. "
+                f"Output exactly {expected_count} translations.\n\n"
+                f"### LINES TO TRANSLATE ###\n{lines_text}"
+            )
 
         if not translations or len(translations) != expected_count:
-            valid_trans = [t if t.strip() else "" for t in (translations or [])[:expected_count + 1]]
-            translations = self._realign_translations(processed_input, valid_trans)
+            logger.warning("BATCH_LLM: Translation failed after %d retries — falling back to line-by-line", self.max_retries)
+            translations = []
+            for line in processed_input:
+                t = self._process_single_line(line)
+                translations.append(t)
+        else:
+            # Fix trivial lines individually — no need to re-translate the whole batch
+            bad_indices = [i for i in range(expected_count)
+                           if self._is_trivial(processed_input[i], translations[i])]
+            if bad_indices:
+                logger.info("BATCH_LLM: Retranslating %d trivial line(s): %s", len(bad_indices), bad_indices)
+                for i in bad_indices:
+                    translations[i] = self._process_single_line(processed_input[i])
 
-        excess = len(translations) - len(processed_input)
-        if excess > 0:
-            print(f"[BATCH] Dropping {excess} excess translation(s)")
         cleaned = [plugins.process_output_text(t) for t in translations[:len(processed_input)]]
-        print(f"[BATCH] Extracted {len(translations)}, returned {len(cleaned)}")
-        for i, (inp, raw, out) in enumerate(zip(processed_input, translations, cleaned)):
-            if "\n" in raw or len(raw) > len(inp) * 2:
-                print(f"  [{i+1}] IN: {inp[:60]}... | RAW: {raw[:80]}... | OUT: {out[:60]}...")
         return cleaned
 
     def _worker_loop(
@@ -629,8 +707,8 @@ class Main_Translator:
                             completed_batches.add(start)
                             remaining_batches.discard(start)
                     continue
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error("CHUNK %d: Exception: %s: %s", start_idx, type(e).__name__, e)
 
             action = None
             with self._lock:
@@ -704,7 +782,7 @@ class Main_Translator:
 
         gaps = sum(1 for r in results if r is None)
         if gaps:
-            print(f"[CHUNK] {gaps} line(s) had no result, filling with Error")
+            logger.warning("CHUNK: %d line(s) had no result, filling with Error", gaps)
         for i in range(n):
             if results[i] is None:
                 results[i] = "Error"
@@ -730,6 +808,12 @@ class Main_Translator:
 translator = Main_Translator()
 translator.activate()
 
+logger.info("Model: %s", translator.model_name)
+logger.info("API Server: %s", translator.api_server)
+logger.info("Parallel workers: %d | Chunk size: %d | Max retries: %d", translator.parallel_workers, translator.chunk_size, translator.max_retries)
+logger.info("Temperature: %.2f | Top P: %.2f | Repetition penalty: %.2f", translator.temperature, translator.top_p, translator.repetition_penalty)
+logger.info("Structured output supported: %s", translator._supports_json_schema)
+
 app = Flask(__name__)
 
 cors = CORS(app)
@@ -744,7 +828,7 @@ def sendSugoi():
     content = data.get("content")
 
     if message == "close server":
-        print("Shutdown requested")
+        logger.info("Shutdown requested")
         return json.dumps({"status": "shutting down"})
 
     if message == "check if server is ready":
@@ -753,16 +837,25 @@ def sendSugoi():
 
     if message == "translate sentences":
         start = time.time()
-        print("Translation request received")
+        logger.info("Translation request received (%d lines)", len(content) if isinstance(content, list) else 1)
         translation = translator.translate(content)
-        print(translation)
         end = time.time()
-        print(f"Translation completed in {end - start:.2f}s")
+        if isinstance(translation, list):
+            for i, (raw, trn) in enumerate(zip(content, translation)):
+                logger.info("RAW %d: %s", i + 1, raw)
+                logger.info("TRN %d: %s", i + 1, trn)
+        for h in logger.handlers:
+            h.flush()
+        logger.info("Translation completed in %.2fs", end - start)
         return json.dumps(translation, ensure_ascii=False)
 
     if message == "translate batch":
-        print("Batch translation request received")
+        logger.info("Batch translation request received (%d lines)", len(content) if isinstance(content, list) else 1)
         translation = translator.translate(content)
+        if isinstance(translation, list):
+            for i, (raw, trn) in enumerate(zip(content, translation)):
+                logger.info("RAW %d: %s", i + 1, raw)
+                logger.info("TRN %d: %s", i + 1, trn)
         return json.dumps(translation, ensure_ascii=False)
 
     if message == "pause":
@@ -772,5 +865,6 @@ def sendSugoi():
         return json.dumps(translator.resume())
 
 
-print(f"Starting Translation API Server on {host}:{port}")
+logger.info("Starting Translation API Server on %s:%d", host, port)
+logger.info("Server is ready")
 serve(app, host=host, port=port)

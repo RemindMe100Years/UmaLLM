@@ -14,7 +14,10 @@ def filter_text(extracted_text):
 
 
 def process_input_text(input_text):
-    return filter_text(input_text)
+    result = filter_text(input_text)
+    result = re.sub(r'}}+', '', result)
+    result = result.replace("\n", " ").replace("\r", " ")
+    return result
 
 
 def process_output_text(output_text):

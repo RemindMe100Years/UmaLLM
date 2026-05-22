@@ -57,7 +57,8 @@
         },
         "アーモンドアイ": {
             "name": "Almond Eye",
-            "gender": "female"
+            "gender": "female",
+            "nickname": "Ai (アイ)"
         },
         "安心沢刺々美": {
             "name": "Anshinzawa Sasami",
@@ -112,7 +113,8 @@
         },
         "カジノドライブ": {
             "name": "Casino Drive",
-            "gender": "female"
+            "gender": "female",
+            "notes": "Has some bits of English in her dialogue"
         },
         "シーザリオ": {
             "name": "Cesario",
@@ -190,7 +192,8 @@
         },
         "ドリームジャーニー": {
             "name": "Dream Journey",
-            "gender": "female"
+            "gender": "female",
+            "nickname": "Elder Sister (姉御)"
         },
         "ドゥラメンテ": {
             "name": "Duramente",
@@ -249,7 +252,8 @@
         },
         "フリオーソ": {
             "name": "Furioso",
-            "gender": "female"
+            "gender": "female",
+            "nickname": "Furio (フリオ)"
         },
         "フサイチパンドラ": {
             "name": "Fusaichi Pandora",
@@ -414,7 +418,10 @@
         "ラヴズオンリーユー": {
             "name": "Loves Only You",
             "gender": "female",
-            "nickname": "Loves (ラヴズ)",
+            "nickname": [
+                "Loves (ラヴズ)",
+                "Love-chan (ラヴちゃん)"
+            ],
             "notes": "This character is a streamer"
         },
         "ラッキーライラック": {
@@ -708,8 +715,7 @@
         "ステイゴールド": {
             "name": "Stay Gold",
             "gender": "female",
-            "nickname": "Stego (ステゴ)",
-            "notes": "Often makes horrible puns. Translate these puns in a way that still makes sense in {output_language}"
+            "nickname": "Stego (ステゴ)"
         },
         "スティルインラブ": {
             "name": "Still in Love",
@@ -719,7 +725,8 @@
         },
         "シュガーライツ": {
             "name": "Sugar Lights",
-            "gender": "female"
+            "gender": "female",
+            "nickname": "Professor (博士)"
         },
         "スーパークリーク": {
             "name": "Super Creek",
@@ -751,7 +758,7 @@
         "タイキシャトル": {
             "name": "Taiki Shuttle",
             "gender": "female",
-            "notes": "Split nationality, has some bits of {input_language} in her dialogue"
+            "notes": "Split nationality, has some bits of English in her dialogue"
         },
         "タマモクロス": {
             "name": "Tamamo Cross",

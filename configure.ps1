@@ -30,11 +30,13 @@ function Write-Menu {
     Write-Host "  [11] Repetition Penalty   : $($settings.repetition_penalty)"
     Write-Host "  [12] Max Tokens           : $($settings.max_tokens)"
     Write-Host "  [13] Min P                : $($settings.min_p)"
-    Write-Host "  [14] Input Language       : $($settings.input_language)"
-    Write-Host "  [15] Output Language      : $($settings.output_language)"
-    Write-Host "  [16] Trainer Gender       : $(Get-TrainerGender)"
+    Write-Host "  [14] Frequency Penalty    : $($settings.frequency_penalty)"
+    Write-Host "  [15] Presence Penalty     : $($settings.presence_penalty)"
+    Write-Host "  [16] Input Language       : $($settings.input_language)"
+    Write-Host "  [17] Output Language      : $($settings.output_language)"
+    Write-Host "  [18] Trainer Gender       : $(Get-TrainerGender)"
     Write-Host ""
-    Write-Host "  [17] Manage Characters" -ForegroundColor Yellow
+    Write-Host "  [19] Manage Characters" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  [q]  Exit" -ForegroundColor Green
     Write-Host ""
@@ -367,6 +369,14 @@ while (-not $exit) {
             if ($val -and $val.Trim() -match '^\d+(\.\d+)?$') { $settings.min_p = [double]$val.Trim(); Save-Settings }
         }
         "14" {
+            $val = Read-Host "  Frequency Penalty (current: $($settings.frequency_penalty))"
+            if ($val -and $val.Trim() -match '^\d+(\.\d+)?$') { $settings.frequency_penalty = [double]$val.Trim(); Save-Settings }
+        }
+        "15" {
+            $val = Read-Host "  Presence Penalty (current: $($settings.presence_penalty))"
+            if ($val -and $val.Trim() -match '^\d+(\.\d+)?$') { $settings.presence_penalty = [double]$val.Trim(); Save-Settings }
+        }
+        "16" {
             $val = Read-Host "  Input language (current: $($settings.input_language))"
             if ($val -and $val.Trim()) {
                 if ($settings.supported_languages_list.ContainsKey($val.Trim())) {
@@ -376,7 +386,7 @@ while (-not $exit) {
                 }
             }
         }
-        "15" {
+        "17" {
             $val = Read-Host "  Output language (current: $($settings.output_language))"
             if ($val -and $val.Trim()) {
                 if ($settings.supported_languages_list.ContainsKey($val.Trim())) {
@@ -386,14 +396,14 @@ while (-not $exit) {
                 }
             }
         }
-        "16" {
+        "18" {
             $val = Read-Host "  Trainer gender (current: $(Get-TrainerGender), M/F)"
             $valUpper = $val.Trim().ToUpper()
             if ($valUpper -eq "M") { Update-TrainerGender "male"; Write-Host "  Saved." -ForegroundColor Green }
             elseif ($valUpper -eq "F") { Update-TrainerGender "female"; Write-Host "  Saved." -ForegroundColor Green }
             elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use M or F." -ForegroundColor Red }
         }
-        "17" { Manage-Characters }
+        "19" { Manage-Characters }
         default {
             if ($choice -and $choice.Trim()) {
                 Write-Host ""
