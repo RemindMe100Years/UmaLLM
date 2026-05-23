@@ -27,7 +27,7 @@ jobs:
 
       - name: Zip package
         run: |
-          Compress-Archive -Path server.py,plugins.py,save_json.py,settings.json,data,configure.ps1,configure.bat,launch.bat,README.md,venv -DestinationPath "UmaLLM-${{ steps.tag.outputs.TAG }}.zip"
+          Compress-Archive -Path scripts,data,configure.bat,launch.bat,README.md,venv -DestinationPath "UmaLLM-${{ steps.tag.outputs.TAG }}.zip"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
