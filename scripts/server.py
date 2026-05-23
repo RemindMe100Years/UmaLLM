@@ -21,6 +21,14 @@ else:
     import litellm
 import plugins
 from concurrent.futures import ThreadPoolExecutor
+
+# Optional: jamdict for semantic sanity checking of translations
+try:
+    from jamdict import Jamdict
+    _JAMDICT_AVAILABLE = True
+except ImportError:
+    _JAMDICT_AVAILABLE = False
+    Jamdict = None
 import threading
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
@@ -40,12 +48,13 @@ try:
 except AttributeError:
     pass
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
-CHARACTER_FILE = os.path.join(BASE_DIR, "data", "character_memory.json")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(SCRIPT_DIR)
+SETTINGS_FILE = os.path.join(SCRIPT_DIR, "settings.json")
+CHARACTER_FILE = os.path.join(ROOT_DIR, "data", "character_memory.json")
 
 # Setup logging — keeps 5 most recent logs in logs/ folder
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
+LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 os.makedirs(LOGS_DIR, exist_ok=True)
 log_file = os.path.join(LOGS_DIR, "server.log")
 
@@ -79,7 +88,7 @@ port = settings["HTTP_port_number"]
 host = "0.0.0.0"
 
 # Setup logging — timestamped files, keeps 5 most recent
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
+LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 os.makedirs(LOGS_DIR, exist_ok=True)
 timestamp = time.strftime("%Y%m%d_%H%M%S")
 log_file = os.path.join(LOGS_DIR, f"server_{timestamp}.log")
@@ -95,6 +104,14 @@ sensitive_filter.load_sensitive_values(settings)
 logger = logging.getLogger("TranslationServer")
 logger.setLevel(logging.INFO)
 logger.addFilter(sensitive_filter)
+
+# Custom TL level for translation pairs (between INFO and WARNING)
+TL_LEVEL = 25
+logging.addLevelName(TL_LEVEL, "TL")
+def tl_log(self, message, *args, **kwargs):
+    if self.isEnabledFor(TL_LEVEL):
+        self._log(TL_LEVEL, message, args, **kwargs)
+logger.tl = lambda msg, *args, **kwargs: tl_log(logger, msg, *args, **kwargs)
 
 formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
@@ -118,7 +135,7 @@ class Main_Translator:
     def __init__(self):
         self.translator_ready_or_not = False
         self.can_change_language_or_not = True
-        self.input_language = settings["input_language"]
+        self.input_language = "Japanese"
         self.output_language = settings["output_language"]
         self.model_name = settings["model_name"]
         self.api_key = settings["api_key"]
@@ -136,7 +153,21 @@ class Main_Translator:
         self.parallel_workers = settings.get("parallel_workers", 1)
         self.chunk_size = settings.get("chunk_size", 10)
         self.max_retries = settings.get("max_retries", 3)
+        self.strip_newlines = settings.get("strip_newlines", True)
+        self.append_all_characters = settings.get("append_all_characters", False)
+        self.jamdict_sanity_check = settings.get("jamdict_sanity_check", False)
         self._lock = threading.Lock()
+
+        # Initialize jamdict if enabled and available (thread-local for SQLite safety)
+        self._jamdict = None
+        if self.jamdict_sanity_check and _JAMDICT_AVAILABLE:
+            try:
+                self._jamdict = threading.local()
+                # Pre-warm current thread to verify it works
+                self._jamdict.instance = Jamdict()
+                logger.info("Jamdict loaded for semantic sanity checking")
+            except Exception as e:
+                logger.warning("Jamdict enabled but failed to load: %s — sanity check disabled", e)
 
         self.messages = []
         self.stop_translation = False
@@ -266,11 +297,31 @@ class Main_Translator:
             return {k: self._substitute(v) for k, v in value.items()}
         return value
 
+    def _build_all_char_context(self, matched_names):
+        if not self.append_all_characters or not self.character_memory:
+            return ""
+        lines = []
+        for jp, raw_data in self.character_memory.items():
+            char_data = self._substitute(raw_data)
+            name = char_data["name"]
+            if name not in matched_names:
+                lines.append(f"- {jp} -> {name}")
+        if lines:
+            return "\n\n[ALL CHARACTERS REFERENCE]:\n" + "\n".join(lines)
+        return ""
+
     def apply_character_memory(self, input_text):
         instructions = self._build_char_instructions(input_text)
+        matched_names = set()
+        for instr in instructions:
+            m = re.search(r"->\s*(.+)", instr)
+            if m:
+                matched_names.add(m.group(1).strip())
+        result = ""
         if instructions:
-            return "\n[CHARACTER GLOSSARY]:\n" + "\n".join(instructions)
-        return ""
+            result = "\n[CHARACTER GLOSSARY]:\n" + "\n".join(instructions)
+        result += self._build_all_char_context(matched_names)
+        return result
 
     def _looks_like_fragment(self, a, b):
         a_end = a.rstrip()
@@ -373,6 +424,8 @@ class Main_Translator:
 
     def execute(self, messages, response_format=None):
         api_params = {"model": self.model_name, "messages": messages}
+        if "reasoning_effort" in self._supported_params:
+            api_params["reasoning_effort"] = None
         param_map = {
             "temperature": self.temperature,
             "top_p": self.top_p,
@@ -439,34 +492,92 @@ class Main_Translator:
                 except Exception:
                     pass
 
+        # Fallback: extract numbered lines (e.g. "1. translation")
+        numbered = re.findall(r"^\d+\.\s+(.+)$", text, re.MULTILINE)
+        if numbered:
+            return self._clean_translations(numbered)
+
         return []
 
     _CJK_PATTERN = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
+    _TOKEN_PATTERN = re.compile(r'<\|[^>]*>')
+    _THINKING_BLOCK = re.compile(r'<\|be_thought_\|>.*?<\|ee_thought_\|>', re.DOTALL)
 
     def _clean_translations(self, translations):
-        """Strip newlines, escape artifacts, CJK chars, and clean up translations."""
+        """Strip newlines, escape artifacts, CJK chars, thinking blocks, and clean up translations."""
         cleaned = []
         for t in translations:
+            t = self._THINKING_BLOCK.sub("", t)  # remove model thinking/reasoning blocks
             t = t.replace("\n", " ").replace("\r", " ")
             t = re.sub(r"\\+", "", t)  # remove stray backslashes
             t = re.sub(r"\}}+", "}", t)  # fix doubled braces
             t = self._CJK_PATTERN.sub("", t)  # remove CJK chars model copies from source
+            t = self._TOKEN_PATTERN.sub("", t)  # remove remaining model internal tokens
+            t = re.sub(r"'\s+\w+'", "'", t)  # fix garbled contractions: "don' de't" -> "don't"
+            t = re.sub(r"'/(\\w)", r"'\1", t)  # fix garbled apostrophes: "It'/s" -> "It's"
             t = re.sub(r"  +", " ", t).strip()
             cleaned.append(t)
-        return cleaned
+        return [t for t in cleaned if t]  # drop empty strings so count mismatch triggers retry
 
     def _is_trivial(self, raw_in, raw_out):
         stripped = raw_out.strip()
         inp_chars = len(raw_in.replace(" ", ""))
         out_stripped = re.sub(r"[\.\-\!\?\,\:\;\x27\x60\~\u2014\u2013\(\)\[\]{}]", "", stripped)
+        if inp_chars > 0 and len(stripped) == 0:
+            return True  # any non-empty input with empty output is bad
         if inp_chars > 10 and len(out_stripped) == 0:
             return True
         if inp_chars > 15 and len(stripped) < 8:
+            return True
+        # Detect split/shifted translations: output suspiciously short for the input
+        if inp_chars > 15 and len(out_stripped) < inp_chars * 0.35:
             return True
         cjk_pattern = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
         if cjk_pattern.search(stripped):
             return True
         return False
+
+    def _sanity_check(self, japanese_input, english_output):
+        """Check if the English output is a reasonable translation of the Japanese input."""
+        if not self._jamdict:
+            return True
+        # Reject template variable leaks ($zero, $var, etc.)
+        if english_output and re.match(r'^\$[\w]+', english_output.strip()):
+            return False
+        # Get or create thread-local Jamdict instance
+        if not hasattr(self._jamdict, 'instance'):
+            self._jamdict.instance = Jamdict()
+        result = self._jamdict.instance.lookup(japanese_input)
+        if not result.entries:
+            return True
+        all_meanings = []
+        for entry in result.entries:
+            for sense in entry.senses:
+                for gloss in sense.gloss:
+                    all_meanings.append(gloss.text.lower())
+        if not all_meanings:
+            return True
+        # Filter out very short/generic glosses (<=3 chars), deduplicate, sort by length
+        meaningful = sorted(set(m for m in all_meanings if len(m) > 3), key=len, reverse=True)
+        if not meaningful:
+            return True
+        output_lower = english_output.lower()
+        matched = [m for m in meaningful if m in output_lower]
+        if not matched:
+            return False
+        longest = meaningful[0]
+        # Adaptive threshold:
+        # - Short inputs (longest gloss <=5, e.g. "wow"→"wow"): 1 match is enough
+        # - Long inputs (longest gloss >5, e.g. "bad luck"): need 2+ matches AND
+        #   at least one matched gloss >= 50% of longest gloss length.
+        #   This prevents two unrelated short words from passing when the actual
+        #   meaning is a longer phrase that didn't match.
+        if len(longest) <= 5:
+            return True  # short input, already has 1+ match
+        else:
+            if len(matched) < 2:
+                return False
+            return any(len(m) >= len(longest) * 0.5 for m in matched)
 
     def translate(self, input_text):
         if self.stop_translation:
@@ -485,7 +596,7 @@ class Main_Translator:
         return cleaned
 
     def _process_single_line(self, input_text):
-        input_text = plugins.process_input_text(input_text)
+        input_text = plugins.process_input_text(input_text, self.strip_newlines)
         char_map = self.apply_character_memory(input_text)
 
         current_turn_prompt = (
@@ -510,8 +621,8 @@ class Main_Translator:
             if cleaned and cleaned.strip():
                 break
 
-        logger.info("RAW: %s", input_text)
-        logger.info("TRN: %s", cleaned)
+        logger.tl("RAW: %s", input_text)
+        logger.tl("TRN: %s", cleaned)
 
         return cleaned, result
 
@@ -528,41 +639,40 @@ class Main_Translator:
                 else []
             )
 
-        processed_translate = [plugins.process_input_text(t) for t in translate_lines]
-        processed_ctx_before = [plugins.process_input_text(t) for t in ctx_before]
-        processed_ctx_after = [plugins.process_input_text(t) for t in ctx_after]
+        processed_translate = [plugins.process_input_text(t, self.strip_newlines) for t in translate_lines]
+        processed_ctx_before = [plugins.process_input_text(t, self.strip_newlines) for t in ctx_before]
+        processed_ctx_after = [plugins.process_input_text(t, self.strip_newlines) for t in ctx_after]
 
-        char_instructions = self._build_char_instructions(processed_translate)
-        char_map = "\n[CHARACTER GLOSSARY]:\n" + "\n".join(char_instructions) if char_instructions else ""
+        char_map = self.apply_character_memory(processed_translate)
 
         ctx_before_block = ""
         if processed_ctx_before:
-            lines_str = "\n".join(f"> {t}" for t in processed_ctx_before)
-            ctx_before_block = (f"### CONTEXT BEFORE (preceding dialogue, for reference only) ###\n"
-                                f"{lines_str}\n\n")
-
-        ctx_after_block = ""
-        if processed_ctx_after:
-            lines_str = "\n".join(f"> {t}" for t in processed_ctx_after)
-            ctx_after_block = (f"\n\n### CONTEXT AFTER (succeeding dialogue, for reference only) ###\n"
-                               f"{lines_str}\n")
+            lines_str = "\n".join(processed_ctx_before)
+            ctx_before_block = (
+                f"> Reference (previous context, DO NOT translate):\n"
+                f"> {lines_str.replace('\n', '\n> ')}\n\n"
+            )
 
         expected_count = len(processed_translate)
         translate_lines_text = "\n".join(
-            f"--- {i+1}/{expected_count} ---\n{t}" for i, t in enumerate(processed_translate)
+            f"{i+1}. {t}" for i, t in enumerate(processed_translate)
         )
 
+        ctx_instruction = (
+            f"Lines prefixed with '>' are reference only — do not produce translations for them. "
+            if ctx_before_block else ""
+        )
         current_turn_prompt = (
             f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
             f"{char_map}\n\n"
-            f"### FORMAT EXAMPLE (showing 2 of {expected_count} lines) ###\n"
-            f"Input:\n--- 1/{expected_count} ---\nHello\n--- 2/{expected_count} ---\nWorld\n[... remaining {expected_count - 2} lines ...]\n\n"
             f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
-          f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
-             f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements, even if it contains multiple sentences or phrases.**\n\n"
-             f"{ctx_before_block}"
-             f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
-            f"{ctx_after_block}"
+            f"Translate the following {expected_count} numbered lines. "
+            f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations. "
+            f"{ctx_instruction}\n\n"
+            f"{ctx_before_block}"
+            f"--- TRANSLATE THESE ---\n"
+            f"{translate_lines_text}\n"
+            f"--- END TRANSLATION ---"
         )
 
         response_format = self._build_json_schema(expected_count) if self._supports_json_schema else None
@@ -582,15 +692,18 @@ class Main_Translator:
             if attempt >= self.max_retries - 1:
                 break
 
-           current_turn_prompt = (
-                 f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                 f"{char_map}\n\n"
-                 f"You produced {len(translations)} translations for {expected_count} lines. "
-                 f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements.**\n\n"
-                 f"{ctx_before_block}"
-                 f"### LINES TO TRANSLATE ###\n{translate_lines_text}"
-                 f"{ctx_after_block}"
-             )
+            current_turn_prompt = (
+                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
+                f"{char_map}\n\n"
+                f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
+                f"You produced {len(translations)} translations for {expected_count} lines. Output EXACTLY {expected_count}. "
+                f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations. "
+                f"{ctx_instruction}\n\n"
+                f"{ctx_before_block}"
+                f"--- TRANSLATE THESE ---\n"
+                f"{translate_lines_text}\n"
+                f"--- END TRANSLATION ---"
+            )
 
         single_line_pairs = []
         if not translations or len(translations) != expected_count:
@@ -603,9 +716,21 @@ class Main_Translator:
         else:
             # Fix trivial lines individually — no need to re-translate the whole chunk
             bad_indices = [i for i in range(expected_count)
-                           if self._is_trivial(processed_translate[i], translations[i])]
+                            if self._is_trivial(processed_translate[i], translations[i])]
+            # Also check semantic sanity via jamdict
+            if self._jamdict:
+                hallucinated = []
+                for i in range(expected_count):
+                    ok = self._sanity_check(processed_translate[i], translations[i])
+                    logger.info("CHUNK %d line %d: jamdict=%s | input=%s | output=%s", start_idx, i, ok, processed_translate[i], translations[i])
+                    if not ok:
+                        hallucinated.append(i)
+                new_bad = [i for i in hallucinated if i not in bad_indices]
+                if new_bad:
+                    logger.info("CHUNK %d: Jamdict flagged %d hallucinated line(s): %s", start_idx, len(new_bad), new_bad)
+                bad_indices.extend(new_bad)
             if bad_indices:
-                logger.info("CHUNK %d: Retranslating %d trivial line(s): %s", start_idx, len(bad_indices), bad_indices)
+                logger.info("CHUNK %d: Retranslating %d bad line(s): %s", start_idx, len(bad_indices), bad_indices)
                 for i in bad_indices:
                     t, r = self._process_single_line(processed_translate[i])
                     translations[i] = t
@@ -620,21 +745,21 @@ class Main_Translator:
         return start_idx, cleaned, processed_translate, result
 
     def _process_batch_llm(self, list_of_text):
-        processed_input = [plugins.process_input_text(t) for t in list_of_text]
+        processed_input = [plugins.process_input_text(t, self.strip_newlines) for t in list_of_text]
         char_map = self.apply_character_memory(processed_input)
 
         expected_count = len(processed_input)
-        lines_text = "\n".join(f"--- {i + 1}/{expected_count} ---\n{t}" for i, t in enumerate(processed_input))
+        lines_text = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(processed_input))
 
         batch_prompt = (
             f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
             f"{char_map}\n\n"
-            f"### FORMAT EXAMPLE (showing 2 of {expected_count} lines) ###\n"
-            f"Input:\n--- 1/{expected_count} ---\nHello\n--- 2/{expected_count} ---\nWorld\n[... remaining {expected_count - 2} lines ...]\n\n"
             f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
-        f"Translate ONLY the following {expected_count} lines in the ### LINES TO TRANSLATE ### section below.\n\n"
-             f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements, even if it contains multiple sentences or phrases.**\n\n"
-             f"### LINES TO TRANSLATE ###\n{lines_text}"
+            f"Translate ONLY the numbered lines below. Produce EXACTLY {expected_count} translations. "
+            f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations.\n\n"
+            f"--- TRANSLATE THESE ---\n"
+            f"{lines_text}\n"
+            f"--- END TRANSLATION ---"
         )
 
         history = (
@@ -658,13 +783,16 @@ class Main_Translator:
             if attempt >= self.max_retries - 1:
                 break
 
-           batch_prompt = (
-                 f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                 f"{char_map}\n\n"
-                 f"You produced {len(translations)} translations for {expected_count} lines. "
-                 f"**CRITICAL: EXACTLY {expected_count} translations. Each --- N/M --- block = ONE complete translation. Never split a single line into multiple array elements.**\n\n"
-                 f"### LINES TO TRANSLATE ###\n{lines_text}"
-             )
+            batch_prompt = (
+                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
+                f"{char_map}\n\n"
+                f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
+                f"You produced {len(translations)} translations for {expected_count} lines. Output EXACTLY {expected_count}. "
+                f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations.\n\n"
+                f"--- TRANSLATE THESE ---\n"
+                f"{lines_text}\n"
+                f"--- END TRANSLATION ---"
+            )
 
         single_line_pairs = []
         if not translations or len(translations) != expected_count:
@@ -677,9 +805,21 @@ class Main_Translator:
         else:
             # Fix trivial lines individually — no need to re-translate the whole batch
             bad_indices = [i for i in range(expected_count)
-                           if self._is_trivial(processed_input[i], translations[i])]
+                            if self._is_trivial(processed_input[i], translations[i])]
+            # Also check semantic sanity via jamdict
+            if self._jamdict:
+                hallucinated = []
+                for i in range(expected_count):
+                    ok = self._sanity_check(processed_input[i], translations[i])
+                    logger.info("BATCH line %d: jamdict=%s | input=%s | output=%s", i, ok, processed_input[i], translations[i])
+                    if not ok:
+                        hallucinated.append(i)
+                new_bad = [i for i in hallucinated if i not in bad_indices]
+                if new_bad:
+                    logger.info("BATCH_LLM: Jamdict flagged %d hallucinated line(s): %s", len(new_bad), new_bad)
+                bad_indices.extend(new_bad)
             if bad_indices:
-                logger.info("BATCH_LLM: Retranslating %d trivial line(s): %s", len(bad_indices), bad_indices)
+                logger.info("BATCH_LLM: Retranslating %d bad line(s): %s", len(bad_indices), bad_indices)
                 for i in bad_indices:
                     t, r = self._process_single_line(processed_input[i])
                     translations[i] = t
@@ -760,7 +900,7 @@ class Main_Translator:
                 logger.info("CHUNK %d: max retries reached, marking as error", start_idx)
                 end_idx = batch['end']
                 errors = ["Error"] * (end_idx - start_idx)
-                processed_input = [plugins.process_input_text(t) for t in batch['translate_lines']]
+                processed_input = [plugins.process_input_text(t, self.strip_newlines) for t in batch['translate_lines']]
                 with self._lock:
                     completed_batches.add(start_idx)
                     remaining_batches.discard(start_idx)
@@ -829,6 +969,20 @@ class Main_Translator:
                 self.messages.append({"role": "user", "content": input_text})
                 self.messages.append({"role": "assistant", "content": output_text})
 
+        # Final sanity check: validate all results against raw input after assembly
+        if self._jamdict:
+            bad_final = []
+            for i in range(n):
+                raw = plugins.process_input_text(list_of_text[i], self.strip_newlines)
+                ok = self._sanity_check(raw, results[i])
+                if not ok:
+                    bad_final.append(i)
+            if bad_final:
+                logger.warning("FINAL CHECK: %d bad translation(s) at indices %s — retranslating", len(bad_final), bad_final)
+                for i in bad_final:
+                    t, _ = self._process_single_line(list_of_text[i])
+                    results[i] = t
+
         return results
 
     def pause(self):
@@ -879,8 +1033,8 @@ def sendSugoi():
         end = time.time()
         if isinstance(translation, list):
             for i, (raw, trn) in enumerate(zip(content, translation)):
-                logger.info("RAW %d: %s", i + 1, raw)
-                logger.info("TRN %d: %s", i + 1, trn)
+                logger.tl("RAW %d: %s", i + 1, raw)
+                logger.tl("TRN %d: %s", i + 1, trn)
         for h in logger.handlers:
             h.flush()
         logger.info("Translation completed in %.2fs", end - start)
@@ -891,8 +1045,8 @@ def sendSugoi():
         translation = translator.translate(content)
         if isinstance(translation, list):
             for i, (raw, trn) in enumerate(zip(content, translation)):
-                logger.info("RAW %d: %s", i + 1, raw)
-                logger.info("TRN %d: %s", i + 1, trn)
+                logger.tl("RAW %d: %s", i + 1, raw)
+                logger.tl("TRN %d: %s", i + 1, trn)
         return json.dumps(translation, ensure_ascii=False)
 
     if message == "pause":

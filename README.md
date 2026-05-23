@@ -14,17 +14,31 @@ Heavily vibe-coded with the assistance of Qwen3.6-27B. This project is mainly a 
 
 ## What Does It Do?
 
-Sits on a local port, waits for translation requests, and sends them off to your LLM of choice. Drop it in front of any app that speaks Sugoi Toolkit's translation API protocol, and it'll handle the rest.
+Sits on a local port, waits for translation requests, and sends them off to your LLM of choice through LiteLLM.
+
+LLM-translated output is sent back to the game in JSON format and displayed in-game
 
 Features:
-- **Structured output** - uses JSON schema to constrain LLM responses, making dropped or garbled translations structurally impossible
-- **Batch translation** - sends all lines in one LLM call for better consistency (active when parallel workers = 1)
-- **Parallel chunked translation** - splits work across multiple workers for faster throughput (But this slightly increases the risk of bad output)
-- **Character memory** - keeps track of character names, nicknames, and context so translations stay consistent (appended to the system prompt)
-- **Selective retry logic** - full retry on count mismatch, or fixes individual trivial lines without retranslating the whole chunk
-- **Output cleaning** - strips stray backslashes, doubled braces, and collapses newlines so Hachimi handles line breaks properly
-- **Format recovery** - handles truncated responses, numbered lists, markdown fences, malformed JSON, and other LLM quirks
-- **File logging** - timestamped logs in `logs/` folder, keeps 5 most recent
+- **Structured output** - Uses JSON schema to constrain LLM responses. Your only enemy now is LLM hallucination.
+- **JSON validation** - Verifies response structure before processing, catches missing fields and type mismatches in case structured output somehow fails
+- **Batch translation** - Can send all lines in one LLM call for better consistency (active when parallel workers = 1), this is how the default 'Auto Translate Stories' works.
+- **Parallel chunked translation** - Splits work across multiple workers for faster throughput (but slightly increases the risk of bad output)
+- **Context-aware chunking** - Context lines can be included. Moderately increases the risk of LLM hallucination but gives context to previous lines if using parallel TL
+- **Character memory** - Keeps track of character names, nicknames, and context so translations stay consistent (appended to the system prompt)
+- **Free-form languages** - No hardcoded language list. Set output languages to any string in settings
+- **Selective retry logic** - Full retry on count mismatch, or fixes individual trivial lines without retranslating the whole chunk
+- **Line-level fallback** - If chunk retries are exhausted, falls back to translating lines individually as a last resort. If this also fails, outputs "".
+- **Format recovery** - Handles truncated responses, numbered lists, markdown fences, malformed JSON, and other LLM quirks
+- **File logging** - Timestamped logs in `logs/` folder, keeps 5 most recent
+- **(EN ONLY) Optional Jamdict integration** - Might help for low parameter LLMs since TL'ed output is checked against the raw text. If output vastly differs (Apple -> Orange), then 
+
+## Known Issues
+
+- **Character names exceeding the name box** - AFAIK there's no way to differentiate between regular dialogue and names from the JSON Hachimi sends. Instructing the LLM to shorten names may lead to loss of quality.
+
+- **Trainer dialogue extending beyond the screen** - Text that is only a few characters wide in Japanese can expand into a full sentence in English, causing the Trainer's dialogue to spill out of the screen.
+
+- **No safeguard for mispelled words** - 
 
 ## Installation
 
@@ -57,32 +71,38 @@ Features:
 
 | Setting | Description |
 |---|---|
-| `HTTP_port_number` | Port the server listens on (default: 14368) |
+| `HTTP_port_number` | Port the server listens on (default: `14368`) |
 | `model_name` | LiteLLM-compatible model name, refer to [LiteLLM Providers](https://docs.litellm.ai/docs/providers) for model names |
 | `api_server` | Your LLM API endpoint |
 | `api_key` | API key (or `null` for local) |
 | `system_prompt` | The translation instructions sent to the LLM |
-| `context_lines` | How many previous lines to keep in conversation history (0 = none) |
-| `temperature`, `top_p`, `top_k`, `min_p` | Sampling parameters |
-| `repetition_penalty` | Repetition penalty (for supported backends) |
-| `frequency_penalty` | Frequency penalty to reduce repetitive output (default: 0.5) |
-| `presence_penalty` | Presence penalty to encourage varied output (default: 0.5) |
-| `max_tokens` | Max tokens per LLM response. If your translations are getting cut off, increasing this might help  |
-| `parallel_workers` | **1** = single batch mode (all lines in one call). **>1** = parallel mode (lines split into chunks) |
-| `chunk_size` | Lines per chunk when using parallel mode (ignored when `parallel_workers` = 1) |
-| `max_retries` | How many times to retry if the LLM returns bad output. The worse the LLM, the higher this needs to be. If retry attempts go past this value, outputs 'Error' |
+| `context_lines` | How many previous lines to keep in conversation history. Recommend to set this to 0 to minimize hallucinations. (default: `2`) |
+| `temperature`, `top_p`, `top_k`, `min_p` | Sampling parameters (default: `0.6`, `0.95`, `64`, `0.05`) |
+| `repetition_penalty` | Repetition penalty (for supported backends) (default: `1.1`) |
+| `frequency_penalty` | Frequency penalty to reduce repetitive output (default: `0.5`) |
+| `presence_penalty` | Presence penalty to encourage varied output (default: `0.5`) |
+| `max_tokens` | Max tokens per LLM response. If your translations are getting cut off, increasing this might help (default: `2048`)  |
+| `parallel_workers` | **1** = single batch mode (all lines in one call). **>1** = parallel mode (lines split into chunks) (default: `3`) |
+| `chunk_size` | Number of lines per chunk when using parallel mode (ignored when `parallel_workers` = 1). (default: `15`) |
+| `max_retries` | How many times to retry if the LLM returns bad output. The worse the LLM, the higher this needs to be. If chunk retries are exhausted, falls back to translating lines individually. (default: `3`) |
+| `strip_newlines` | If `true`, collapses multiple newlines into one in the output to let Hachimi handle line breaks (default: `true`) |
+| `append_all_characters` | Only relevant if using parallel TL. If `true`, scans the full batch once. Any characters that matched are added to the current glossary, and that glossary is shared with all chunks. Recommended to have this on when using parallel translation. (default: `false`) |
+| `jamdict_sanity_check` | If `true`, runs translated output through Jamdict to verify Japanese terms were actually translated. Set to false if output language is not English. Otherwise, every output will be flagged. (default: `false`) |
+| `output_language` | Target language for translations (default: `English`).|
 
 ### Translation Modes
 
 - **Single batch** (`parallel_workers: 1`) - sends everything to the LLM in one shot, similar to how it works with Sugoi Offline. Best for consistency and accuracy, but might be slower than parallel depending on your GPU, especially on events with lots of text
 
-- **Parallel** (`parallel_workers: >1`, `chunk_size: <N>`) - splits lines into chunks and processes them across multiple workers. Good for GPUs that can handle parallel requests or for users paying for API keys. `context_lines` looks in both directions (if context lines is 3, then the 3 raw texts before and after the current message are sent to the LLM for context)
+- **Parallel** (`parallel_workers: >1`, `chunk_size: <N>`) - splits input into character-sized chunks and processes them across multiple workers. Good for GPUs that can handle parallel requests or for users paying for API keys. `context_lines` looks in both directions (if context lines is 3, then the 3 raw texts before and after the current message are sent to the LLM for context)
 
 - For an RTX 5090, I've found `parallel_workers: 5` and `chunk_size: 20` to be the sweet spot. Using gemma-4-26b-a4b-it@q4_k_m, this setting usually translates almost every event in 4-10 seconds, and for large walls of text it takes around 15 seconds. The good news is Hachimi caches auto translation, which means you can just set Auto Translate to on and enable Auto Play and read a Trainee's story with minimal interruptions on the next training session.
 
 ## Character Memory
 
 I've included a character memory file on `data/character_memory.json` with character names, nicknames, and notes. The server will include relevant character info in each translation prompt so the LLM knows how to handle names and personalities.
+
+All string fields support `{input_language}` and `{output_language}` placeholders, resolved at runtime. This lets you write notes like "makes sense in {input_language}" that adapt to any language pair without editing the file.
 
 Example:
 ```json
@@ -97,6 +117,12 @@ Example:
   }
 }
 ```
+
+## Jamdict Integration
+
+The server can optionally use [Jamdict](https://pypi.org/project/jamdict/) to verify translations. When `jamdict_sanity_check` is enabled in settings, the server runs the translated output through Jamdict to check that Japanese terms were actually translated and not left as romaji or untranslated kanji.
+
+I haven't done extensive testing if this actually helps, but theoretically, it should help when you are using an old LLM model like [VNTL Llamma](https://huggingface.co/lmg-anon/vntl-llama3-8b-v2-gguf) or a model that is not good at translating from English to Japanese. Additional latency is in the milisecond range.
 
 ## Logging
 
@@ -135,5 +161,7 @@ Included is a batch file **configure.bat** for easier configuration of the featu
 ## Credits
 
 Derived from [Sugoi Toolkit](https://www.patreon.com/mingshiba) by MingShiba. This repository does not contain proprietary model weights.
+
+neocl for [jamdict_data](https://github.com/neocl/jamdict_data). This is the prebuilt Jamdict database that is downloaded when the user opts to install [Jamdict](https://pypi.org/project/jamdict/)
 
 Hachimi developers for the Auto Translate feature.

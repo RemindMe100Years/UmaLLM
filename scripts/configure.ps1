@@ -1,6 +1,7 @@
-$BASE_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SETTINGS_FILE = Join-Path $BASE_DIR "settings.json"
-$CHARACTER_FILE = Join-Path $BASE_DIR "data\character_memory.json"
+$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ROOT_DIR = Split-Path -Parent $SCRIPT_DIR
+$SETTINGS_FILE = Join-Path $SCRIPT_DIR "settings.json"
+$CHARACTER_FILE = Join-Path $ROOT_DIR "data\character_memory.json"
 
 $settings = $null
 
@@ -32,18 +33,20 @@ function Write-Menu {
     Write-Host "  [13] Min P                : $($settings.min_p)"
     Write-Host "  [14] Frequency Penalty    : $($settings.frequency_penalty)"
     Write-Host "  [15] Presence Penalty     : $($settings.presence_penalty)"
-    Write-Host "  [16] Input Language       : $($settings.input_language)"
-    Write-Host "  [17] Output Language      : $($settings.output_language)"
-    Write-Host "  [18] Trainer Gender       : $(Get-TrainerGender)"
+    Write-Host "  [16] Output Language      : $($settings.output_language)"
+    Write-Host "  [17] Trainer Gender       : $(Get-TrainerGender)"
+    Write-Host "  [18] Strip Newlines       : $($settings.strip_newlines)"
+    Write-Host "  [19] Append All Characters: $($settings.append_all_characters)"
+    Write-Host "  [20] Jamdict Sanity Check  : $($settings.jamdict_sanity_check)"
     Write-Host ""
-    Write-Host "  [19] Manage Characters" -ForegroundColor Yellow
+    Write-Host "  [21] Manage Characters" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  [q]  Exit" -ForegroundColor Green
     Write-Host ""
 }
 
 function Get-TrainerGender {
-    $gender = python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --get "trainer.gender" 2>$null
+    $gender = python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --get "trainer.gender" 2>$null
     if ($gender) { return $gender }
     return "unknown"
 }
@@ -53,14 +56,14 @@ function Save-Settings {
     $json = $settings | ConvertTo-Json -Depth 10
     $utf8 = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($tmp, $json, $utf8)
-    python (Join-Path $BASE_DIR "save_json.py") $SETTINGS_FILE -from $tmp
+    python (Join-Path $SCRIPT_DIR "save_json.py") $SETTINGS_FILE -from $tmp
     Remove-Item $tmp -ErrorAction SilentlyContinue
     Write-Host ""
     Write-Host "Settings saved!" -ForegroundColor Green
 }
 
 function Update-TrainerGender($gender) {
-    python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE "" "trainer.gender=$gender"
+    python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE "" "trainer.gender=$gender"
 }
 
 function Manage-Characters {
@@ -97,7 +100,7 @@ function Manage-Characters {
 }
 
 function List-Characters {
-    $json = python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --list 2>$null
+    $json = python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --list 2>$null
     if (-not $json) { Write-Host "  Failed to load characters." -ForegroundColor Red; return }
     $chars = $json | ConvertFrom-Json
     Write-Host ""
@@ -117,7 +120,7 @@ function Edit-Character {
     if ($idx -eq "-1" -or -not $idx) { return }
     if ($idx -notmatch '^\d+$') { Write-Host "  Invalid index." -ForegroundColor Red; return }
 
-    $json = python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --list 2>$null
+    $json = python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --list 2>$null
     $chars = $json | ConvertFrom-Json
     $idx = [int]$idx
     if ($idx -ge $chars.Count) { Write-Host "  Index out of range." -ForegroundColor Red; return }
@@ -147,7 +150,7 @@ function Edit-Character {
                     $tmp = Join-Path $env:TEMP "char_fields.json"
                     $utf8 = New-Object System.Text.UTF8Encoding $false
                     [System.IO.File]::WriteAllText($tmp, (@{ name = $newName.Trim() } | ConvertTo-Json -Depth 5), $utf8)
-                    python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
+                    python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
                     Remove-Item $tmp -ErrorAction SilentlyContinue
                     $c.name = $newName.Trim()
                     Write-Host "  Updated!" -ForegroundColor Green
@@ -163,15 +166,15 @@ function Edit-Character {
                         $notesTmp = Join-Path $env:TEMP "char_notes.txt"
                         [System.IO.File]::WriteAllText($notesTmp, $c.notes, $utf8)
                     }
-                    python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --delete $idx
+                    python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --delete $idx
                     $cmdArgs = @("--add", $newJp, $c.name, $c.gender)
                     if ($c.nickname -is [array]) { $cmdArgs += @("--nickname", ($c.nickname -join ', ')) }
                     elseif ($c.nickname) { $cmdArgs += @("--nickname", $c.nickname) }
                     if ($notesTmp) { $cmdArgs += @("--notes-file", $notesTmp) }
-                    python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE $cmdArgs
+                    python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE $cmdArgs
                     if ($notesTmp) { Remove-Item $notesTmp -ErrorAction SilentlyContinue }
                     $c.jp = $newJp
-                    $newList = python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --list 2>$null | ConvertFrom-Json
+                    $newList = python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --list 2>$null | ConvertFrom-Json
                     $idx = [int]($newList | Where-Object { $_.jp -eq $newJp }).i
                     Write-Host "  Updated!" -ForegroundColor Green
                 }
@@ -187,7 +190,7 @@ function Edit-Character {
                         $tmp = Join-Path $env:TEMP "char_fields.json"
                         $utf8 = New-Object System.Text.UTF8Encoding $false
                         [System.IO.File]::WriteAllText($tmp, (@{ gender = $gender } | ConvertTo-Json -Depth 5), $utf8)
-                        python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
+                        python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
                         Remove-Item $tmp -ErrorAction SilentlyContinue
                         $c.gender = $gender
                         Write-Host "  Updated!" -ForegroundColor Green
@@ -204,7 +207,7 @@ function Edit-Character {
                 $tmp = Join-Path $env:TEMP "char_fields.json"
                 $utf8 = New-Object System.Text.UTF8Encoding $false
                 [System.IO.File]::WriteAllText($tmp, (@{ nickname = $nick } | ConvertTo-Json -Depth 5), $utf8)
-                python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
+                python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
                 Remove-Item $tmp -ErrorAction SilentlyContinue
                 $c.nickname = $nick
                 Write-Host "  Updated!" -ForegroundColor Green
@@ -217,7 +220,7 @@ function Edit-Character {
                 $tmp = Join-Path $env:TEMP "char_fields.json"
                 $utf8 = New-Object System.Text.UTF8Encoding $false
                 [System.IO.File]::WriteAllText($tmp, (@{ notes = $notes } | ConvertTo-Json -Depth 5), $utf8)
-                python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
+                python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --edit $idx --fields $tmp
                 Remove-Item $tmp -ErrorAction SilentlyContinue
                 $c.notes = $notes
                 Write-Host "  Updated!" -ForegroundColor Green
@@ -274,7 +277,7 @@ function Add-Character {
         $cmdArgs += @("--notes-file", $tmp)
     }
 
-    python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE $cmdArgs
+    python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE $cmdArgs
     if ($notes) { Remove-Item $tmp -ErrorAction SilentlyContinue }
     Write-Host ""
     Write-Host "  Entry added!" -ForegroundColor Green
@@ -286,7 +289,7 @@ function Delete-Character {
     if ($idx -eq "-1" -or -not $idx) { return }
     if ($idx -notmatch '^\d+$') { Write-Host "  Invalid index." -ForegroundColor Red; return }
 
-    $json = python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --list 2>$null
+    $json = python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --list 2>$null
     $chars = $json | ConvertFrom-Json
     $idx = [int]$idx
     if ($idx -ge $chars.Count) { Write-Host "  Index out of range." -ForegroundColor Red; return }
@@ -294,7 +297,7 @@ function Delete-Character {
 
     $confirm = Read-Host "  Are you sure you want to delete $($c.name) from memory? (y/n)"
     if ($confirm.Trim().ToLower() -eq "y") {
-        python (Join-Path $BASE_DIR "save_json.py") $CHARACTER_FILE --delete $idx
+        python (Join-Path $SCRIPT_DIR "save_json.py") $CHARACTER_FILE --delete $idx
         Write-Host ""
         Write-Host "  Character deleted." -ForegroundColor Green
     } else {
@@ -377,16 +380,6 @@ while (-not $exit) {
             if ($val -and $val.Trim() -match '^\d+(\.\d+)?$') { $settings.presence_penalty = [double]$val.Trim(); Save-Settings }
         }
         "16" {
-            $val = Read-Host "  Input language (current: $($settings.input_language))"
-            if ($val -and $val.Trim()) {
-                if ($settings.supported_languages_list.ContainsKey($val.Trim())) {
-                    $settings.input_language = $val.Trim(); Save-Settings
-                } else {
-                    Write-Host "  Invalid language!" -ForegroundColor Red
-                }
-            }
-        }
-        "17" {
             $val = Read-Host "  Output language (current: $($settings.output_language))"
             if ($val -and $val.Trim()) {
                 if ($settings.supported_languages_list.ContainsKey($val.Trim())) {
@@ -396,14 +389,35 @@ while (-not $exit) {
                 }
             }
         }
-        "18" {
+       "17" {
             $val = Read-Host "  Trainer gender (current: $(Get-TrainerGender), M/F)"
             $valUpper = $val.Trim().ToUpper()
             if ($valUpper -eq "M") { Update-TrainerGender "male"; Write-Host "  Saved." -ForegroundColor Green }
             elseif ($valUpper -eq "F") { Update-TrainerGender "female"; Write-Host "  Saved." -ForegroundColor Green }
             elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use M or F." -ForegroundColor Red }
         }
-        "19" { Manage-Characters }
+        "18" {
+            $val = Read-Host "  Strip newlines (current: $($settings.strip_newlines), y/n)"
+            $valLower = $val.Trim().ToLower()
+            if ($valLower -eq "y") { $settings.strip_newlines = $true; Save-Settings }
+            elseif ($valLower -eq "n") { $settings.strip_newlines = $false; Save-Settings }
+            elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
+        }
+       "19" {
+            $val = Read-Host "  Append all characters (current: $($settings.append_all_characters), y/n)"
+            $valLower = $val.Trim().ToLower()
+            if ($valLower -eq "y") { $settings.append_all_characters = $true; Save-Settings }
+            elseif ($valLower -eq "n") { $settings.append_all_characters = $false; Save-Settings }
+            elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
+        }
+        "20" {
+            $val = Read-Host "  Jamdict sanity check (current: $($settings.jamdict_sanity_check), y/n)"
+            $valLower = $val.Trim().ToLower()
+            if ($valLower -eq "y") { $settings.jamdict_sanity_check = $true; Save-Settings }
+            elseif ($valLower -eq "n") { $settings.jamdict_sanity_check = $false; Save-Settings }
+            elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
+        }
+        "21" { Manage-Characters }
         default {
             if ($choice -and $choice.Trim()) {
                 Write-Host ""

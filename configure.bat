@@ -11,6 +11,6 @@ if not exist "%VENV%" (
 )
 
 call "%VENV%\Scripts\activate.bat"
-powershell -ExecutionPolicy Bypass -NoProfile -File "%~dp0configure.ps1"
+powershell -ExecutionPolicy Bypass -NoProfile -File "%~dp0scripts\configure.ps1"
 deactivate
 pause

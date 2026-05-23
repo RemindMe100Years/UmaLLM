@@ -165,7 +165,7 @@
                 "Helios (ヘリオス)",
                 "Zuttomo (ズッ友)"
             ],
-            "notes": "Almost all of this character's dialogue makes no sense or is hard to translate. Translate to full brainrot or valley-girl or both, but mostly the former. Zuttomo means Bestie"
+            "notes": "Translate to full brainrot or valley-girl or both, but mostly the former. When this character says お嬢, they are referring to ダイイチルビー. Zuttomo means Bestie"
         },
         "ダイワスカーレット": {
             "name": "Daiwa Scarlet",
@@ -337,7 +337,12 @@
         },
         "保科健子": {
             "name": "Hoshina Kiyoko",
-            "gender": "female"
+            "gender": "female",
+            "nickname": [
+                "Proprietress (女将)",
+                "Kiyoko (健子)"
+            ],
+            "notes": "Proprietress of Yukoma Inn"
         },
         "細江純子": {
             "name": "Hosoe Junko",
@@ -436,7 +441,8 @@
         },
         "マルシュロレーヌ": {
             "name": "Marche Lorraine",
-            "gender": "female"
+            "gender": "female",
+            "nickname": "Maru-chan (マルちゃん)"
         },
         "マルゼンスキー": {
             "name": "Maruzensky",
@@ -551,7 +557,7 @@
             "name": "Neo Universe",
             "gender": "female",
             "nickname": "Yuni (ユニ)",
-            "notes": "Often speaks robotically or in acronyms. The acronyms should be translated to the closest {output_language} equivalent."
+            "notes": "Often speaks robotically or in acronyms. The acronyms should be translated to the closest {output_language} equivalent. スフィーラ -> Sphaera"
         },
         "ナイスネイチャ": {
             "name": "Nice Nature",
@@ -697,7 +703,8 @@
         },
         "サウンズオブアース": {
             "name": "Sounds of Earth",
-            "gender": "female"
+            "gender": "female",
+            "notes": "Incorporates bits of Italian in dialogue. Just leave those as is."
         },
         "スペシャルウィーク": {
             "name": "Special Week",
@@ -758,13 +765,13 @@
         "タイキシャトル": {
             "name": "Taiki Shuttle",
             "gender": "female",
-            "notes": "Split nationality, has some bits of English in her dialogue"
+            "notes": "Has some bits of English in her dialogue. Talks like a foreigner (Depicted by Japanese words spoken in Katakana such as 'デース' and 'ハイハーイ！'. Figure out the Japanese meaning by converting to Hiragana and translating from there while making sure the final translation still makes sense grammatically)"
         },
         "タマモクロス": {
             "name": "Tamamo Cross",
             "gender": "female",
             "nickname": "Tama (タマ)",
-            "notes": "Speaks in Kansai Dialect. This character's dialogue should be translated to Southern American dialect"
+            "notes": "Speaks in Kansai Dialect. Kansai Dialect should be translated to Southern American dialect. Non-Kansai dialect dialogue should be translated like normal."
         },
         "タニノギムレット": {
             "name": "Tanino Gimlet",
@@ -863,7 +870,9 @@
         },
         "ユノハナブルーム": {
             "name": "Yunohana Bloom",
-            "gender": "female"
+            "gender": "female",
+            "nickname": "Young Proprietress (若女将)",
+            "notes": "Young Proprietress of Yukoma Inn"
         },
         "ゼンノロブロイ": {
             "name": "Zenno Rob Roy",
