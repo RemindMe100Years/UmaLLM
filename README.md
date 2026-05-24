@@ -38,7 +38,7 @@ Features:
 
 - **Trainer dialogue extending beyond the screen** - Text that is only a few characters wide in Japanese can expand into a full sentence in English, causing the Trainer's dialogue to spill out of the screen.
 
-- **No safeguard for mispelled words** - 
+- **No safeguard for mispelled words** - Pretty much nothing we can do here chief. If your LLM hallucinates spelling, that's that.
 
 ## Installation
 
@@ -87,7 +87,7 @@ Features:
 | `max_retries` | How many times to retry if the LLM returns bad output. The worse the LLM, the higher this needs to be. If chunk retries are exhausted, falls back to translating lines individually. (default: `3`) |
 | `append_all_characters` | Only relevant if using parallel TL. If `true`, scans the full batch once. Any characters that matched are added to the current glossary, and that glossary is shared with all chunks. Recommended to have this on when using parallel translation. (default: `false`) |
 | `jamdict_sanity_check` | If `true`, runs translated output through Jamdict to verify Japanese terms were actually translated. Set to false if output language is not English. Otherwise, every output will be flagged. (default: `false`) |
-| `output_language` | Target language for translations (default: `English`).|
+| `output_language` | Target language for translations (default: `English`). **NOT YET TESTED ON LANGUAGES OTHER THAN ENGLISH** |
 | `preserve_honorifics` | We use a simple logic to append honorific to the character names in glossary to make the LLM more consistent. If you want this feature off, you would also need to remove all instructions pertaining to the use of honorifics in the system prompt. (default: `true`).|
 
 ### Translation Modes
