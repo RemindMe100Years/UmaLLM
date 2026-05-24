@@ -27,10 +27,10 @@ Features:
 - **Character memory** - Keeps track of character names, nicknames, and context so translations stay consistent (appended to the system prompt)
 - **Free-form languages** - No hardcoded language list. Set output languages to any string in settings
 - **Selective retry logic** - Full retry on count mismatch, or fixes individual trivial lines without retranslating the whole chunk
-- **Line-level fallback** - If chunk retries are exhausted, falls back to translating lines individually as a last resort. If this also fails, outputs "".
+- **Line-level fallback** - If chunk retries are exhausted, falls back to translating lines individually as a last resort. If this also fails, freezes the game (Intentional because cache works against you here. You would see the error placeholder everytime you see the event in subsequent encounters).
 - **Format recovery** - Handles truncated responses, numbered lists, markdown fences, malformed JSON, and other LLM quirks
-- **File logging** - Timestamped logs in `logs/` folder, keeps 5 most recent
-- **(EN ONLY) Optional Jamdict integration** - Might help for low parameter LLMs since TL'ed output is checked against the raw text. If output vastly differs (Apple -> Orange), then 
+- **File logging** - Timestamped logs in `logs/` folder, hardcoded to keep 5 most recent session logs, splitting at 10MB.
+- **(EN ONLY) Optional Jamdict integration** - Might help for low parameter LLMs since TL'ed output is checked against the raw text. If output vastly differs (Apple -> Orange), then a retry is called.
 
 ## Known Issues
 
@@ -85,10 +85,10 @@ Features:
 | `parallel_workers` | **1** = single batch mode (all lines in one call). **>1** = parallel mode (lines split into chunks) (default: `3`) |
 | `chunk_size` | Number of lines per chunk when using parallel mode (ignored when `parallel_workers` = 1). (default: `15`) |
 | `max_retries` | How many times to retry if the LLM returns bad output. The worse the LLM, the higher this needs to be. If chunk retries are exhausted, falls back to translating lines individually. (default: `3`) |
-| `strip_newlines` | If `true`, collapses multiple newlines into one in the output to let Hachimi handle line breaks (default: `true`) |
 | `append_all_characters` | Only relevant if using parallel TL. If `true`, scans the full batch once. Any characters that matched are added to the current glossary, and that glossary is shared with all chunks. Recommended to have this on when using parallel translation. (default: `false`) |
 | `jamdict_sanity_check` | If `true`, runs translated output through Jamdict to verify Japanese terms were actually translated. Set to false if output language is not English. Otherwise, every output will be flagged. (default: `false`) |
 | `output_language` | Target language for translations (default: `English`).|
+| `preserve_honorifics` | We use a simple logic to append honorific to the character names in glossary to make the LLM more consistent. If you want this feature off, you would also need to remove all instructions pertaining to the use of honorifics in the system prompt. (default: `true`).|
 
 ### Translation Modes
 
@@ -96,7 +96,7 @@ Features:
 
 - **Parallel** (`parallel_workers: >1`, `chunk_size: <N>`) - splits input into character-sized chunks and processes them across multiple workers. Good for GPUs that can handle parallel requests or for users paying for API keys. `context_lines` looks in both directions (if context lines is 3, then the 3 raw texts before and after the current message are sent to the LLM for context)
 
-- For an RTX 5090, I've found `parallel_workers: 5` and `chunk_size: 20` to be the sweet spot. Using gemma-4-26b-a4b-it@q4_k_m, this setting usually translates almost every event in 4-10 seconds, and for large walls of text it takes around 15 seconds. The good news is Hachimi caches auto translation, which means you can just set Auto Translate to on and enable Auto Play and read a Trainee's story with minimal interruptions on the next training session.
+- For an RTX 5090, I've found `parallel_workers: 5` and `chunk_size: 15` to be the sweet spot. Using gemma-4-26b-a4b-it@q4_k_m, this setting usually translates almost every event in 4-10 seconds, and for large walls of text it takes around 15 seconds. The good news is Hachimi caches auto translation, which means you can just set Auto Translate to on and enable Auto Play and read a Trainee's story with minimal interruptions the next time you encounter the same event.
 
 ## Character Memory
 
@@ -117,6 +117,7 @@ Example:
   }
 }
 ```
+In scenario above, with `preserve_honorifics` set to `true`, JP text スペちゃん would get added to glossary as Spe-chan. Same with スペさん and スペ先輩. These get added to the glossary as Spe-san and Spe-senpai. If false, it just adds スペ everytime, no matter the honorific used.
 
 ## Jamdict Integration
 
