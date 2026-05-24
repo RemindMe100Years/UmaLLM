@@ -3,7 +3,7 @@
     "model_name": "lm_studio/gemma-4-26b-a4b-it@q4_k_m",
     "api_server": "http://127.0.0.1:1234/v1",
     "api_key": null,
-    "system_prompt": "Localize Japanese dialogue to natural {output_language} for Uma Musume: Pretty Derby.\n\nRULES:\n• EXPRESSIVE TONE: Don't play it safe. Use vivid, natural language. Match each character's exact energy (casual/formal). Do not blend speech styles.\n• NO CJK OR ROMAJI: Output zero Japanese characters. Translate all standard vocabulary to actual English (no romaji).\n• NAMES & HONORIFICS: Translate nouns attached to honorifics (e.g., 鷹さん → \"Hawk-san\"). Preserve suffixes (-san, -kun, -chan) and \"Senpai\" EXACTLY as they appear in the source text—never add them if missing. Do not expand nicknames.\n• FIXED TERMS & PASSTHROUGH: ウマ娘 = Uma Musume | トレセン = Tracen. Keep existing English text and whitespace as-is. Name-only input = romanized name, no punctuation.\n• CONTEXT AWARENESS: All numbered lines in a batch are sequential dialogue. Use surrounding lines to resolve pronouns, references, and continuity. Only produce a translation for each numbered line.\n• 1:1 STRUCTURAL MATCH: One source line = one translation. Preserve all brackets and newlines. Convert elongations (ー, っ) to English letters (\"sooo\") sparingly.\n• NO HALLUCINATIONS: Do not add unprompted prose. Short input = short output. Localize only what is there. Do not make up stories to translate.\n• STRICT OUTPUT: Return ONLY the JSON object. No thinking, no commentary.",
+    "system_prompt": "Localize Japanese to natural {output_language} for Uma Musume: Pretty Derby.\n\nRULES:\n• TONE: Match each character's personality. Casual stays casual, formal stays formal. Never blend styles.\n• NO CJK/ROMAJI: Zero Japanese in output. Translate all vocabulary.\n• NICKNAMES: The glossary lists nicknames as `jp->{output_language}`. Match the exact token from the source to the glossary — different nicknames for the same character are not interchangeable (e.g. ファル子->Falco, ファルコン->Falcon). Never expand a nickname to the full name (e.g. ハートさん->Heart-san, not Daring Heart-san).\n• HONORIFICS: Transliterate all honorifics to Latin script, separated from the name with a dash (e.g. Fukukitaru-san, not Fukukitarusan). Include an honorific only when it is attached to a name in the source. Never add one to a bare name, and never drop one that is present.\n• FIXED: ウマ娘=Uma Musume | トレセン=Tracen. Keep existing English as-is. Name-only input = romanize only what appears in source.\n• LINE_NNN IDs: Sequential dialogue. Use surrounding lines for pronouns, story flow, and continuity. One translation/line per UID — never split one line into multiple.\n• 1:1 MATCH: One source line = one LINE_NNN translation. Preserve brackets/parentheses. Never use quotation marks in translations unless the source text explicitly quotes something (this rule applies to translation content only, not JSON structure). Convert elongations (ー, っ) to repeated English letters sparingly.\n• NO HALLUCINATIONS: Short input = short output. Translate only what is on the line.\n• GRAMMAR: Ensure all translations read naturally and are grammatically correct in {output_language}.\n• OUTPUT: JSON with LINE_NNN keys only. No commentary.",
     "context_lines": 0,
     "temperature": 0.6,
     "top_p": 0.95,
@@ -16,8 +16,8 @@
     "parallel_workers": 3,
     "chunk_size": 15,
     "max_retries": 3,
-    "strip_newlines": true,
     "append_all_characters": false,
     "jamdict_sanity_check": false,
-    "output_language": "English"
+    "output_language": "English",
+    "preserve_honorifics": true
 }

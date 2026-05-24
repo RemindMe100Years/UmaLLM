@@ -53,7 +53,8 @@
         "秋川やよい": {
             "name": "Akikawa Yayoi",
             "gender": "female",
-            "nickname": "Chairwoman (理事長)"
+            "nickname": "Chairwoman (理事長)",
+            "notes": "Translate 理事長 as Chairwoman"
         },
         "アーモンドアイ": {
             "name": "Almond Eye",
@@ -374,7 +375,7 @@
         "ケイエスミラクル": {
             "name": "K.S.Miracle",
             "gender": "female",
-            "nickname": "Kei-Chan (ケイちゃん)"
+            "nickname": "Kei (ケイ)"
         },
         "樫本理子": {
             "name": "Kashimoto Riko",
@@ -403,10 +404,14 @@
             "name": "Kiryuin Aoi",
             "gender": "female"
         },
+        "キセキ": {
+            "name": "Kiseki",
+            "gender": "female"
+        },
         "キタサンブラック": {
             "name": "Kitasan Black",
             "gender": "female",
-            "nickname": "Kita-Chan (キタちゃん)"
+            "nickname": "Kita (キタ)"
         },
         "ライトハロー": {
             "name": "Light Hello",
@@ -425,7 +430,7 @@
             "gender": "female",
             "nickname": [
                 "Loves (ラヴズ)",
-                "Love-chan (ラヴちゃん)"
+                "Love (ラヴ)"
             ],
             "notes": "This character is a streamer"
         },
@@ -442,7 +447,7 @@
         "マルシュロレーヌ": {
             "name": "Marche Lorraine",
             "gender": "female",
-            "nickname": "Maru-chan (マルちゃん)"
+            "nickname": "Maru (マル)"
         },
         "マルゼンスキー": {
             "name": "Maruzensky",
@@ -683,7 +688,8 @@
         },
         "サイレンススズカ": {
             "name": "Silence Suzuka",
-            "gender": "female"
+            "gender": "female",
+            "notes": "景色 = Scenery"
         },
         "シリウスシンボリ": {
             "name": "Sirius Symboli",
@@ -717,7 +723,8 @@
         },
         "ST-2": {
             "name": "ST-2",
-            "gender": "female"
+            "gender": "female",
+            "nickname": "Saty (サティ)"
         },
         "ステイゴールド": {
             "name": "Stay Gold",
@@ -804,7 +811,7 @@
             "name": "Tsurumaru Tsuyoshi",
             "gender": "female",
             "nickname": [
-                "Tsuru-chan (ツルちゃん)",
+                "Tsuru (ツル)",
                 "Tsuyoshi (ツヨシ)"
             ]
         },
@@ -885,6 +892,11 @@
         "朝日杯フューチュリティステークス": {
             "name": "Asahi Hai Futurity Stakes",
             "gender": "Not Applicable"
+        },
+        "Breeders' Cup": {
+            "name": "Breeders' Cup",
+            "gender": "Not Applicable",
+            "notes": "Just leave this as is"
         },
         "チャンピオンズカップ": {
             "name": "Champions Cup",

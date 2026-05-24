@@ -16,18 +16,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Create venv and install deps
-        run: |
-          python -m venv venv
-          .\venv\Scripts\python.exe -m pip install litellm flask flask-cors waitress
-
       - name: Get tag name
         id: tag
         run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_OUTPUT
 
       - name: Zip package
         run: |
-          Compress-Archive -Path scripts,data,configure.bat,launch.bat,README.md,venv -DestinationPath "UmaLLM-${{ steps.tag.outputs.TAG }}.zip"
+          Compress-Archive -Path scripts,data,configure.bat,launch.bat,setup.bat,README.md -DestinationPath "UmaLLM-${{ steps.tag.outputs.TAG }}.zip"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

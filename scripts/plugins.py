@@ -14,11 +14,10 @@ def filter_text(extracted_text):
     return result
 
 
-def process_input_text(input_text, strip_newlines=True):
+def process_input_text(input_text):
     result = filter_text(input_text)
     result = re.sub(r'}}+', '', result)
-    if strip_newlines:
-        result = result.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    result = result.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
     return result
 
 

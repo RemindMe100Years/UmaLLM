@@ -35,9 +35,9 @@ function Write-Menu {
     Write-Host "  [15] Presence Penalty     : $($settings.presence_penalty)"
     Write-Host "  [16] Output Language      : $($settings.output_language)"
     Write-Host "  [17] Trainer Gender       : $(Get-TrainerGender)"
-    Write-Host "  [18] Strip Newlines       : $($settings.strip_newlines)"
-    Write-Host "  [19] Append All Characters: $($settings.append_all_characters)"
-    Write-Host "  [20] Jamdict Sanity Check  : $($settings.jamdict_sanity_check)"
+    Write-Host "  [18] Append All Characters: $($settings.append_all_characters)"
+    Write-Host "  [19] Jamdict Sanity Check  : $($settings.jamdict_sanity_check)"
+    Write-Host "  [20] Preserve Honorifics   : $($settings.preserve_honorifics)"
     Write-Host ""
     Write-Host "  [21] Manage Characters" -ForegroundColor Yellow
     Write-Host ""
@@ -396,27 +396,27 @@ while (-not $exit) {
             elseif ($valUpper -eq "F") { Update-TrainerGender "female"; Write-Host "  Saved." -ForegroundColor Green }
             elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use M or F." -ForegroundColor Red }
         }
-        "18" {
-            $val = Read-Host "  Strip newlines (current: $($settings.strip_newlines), y/n)"
-            $valLower = $val.Trim().ToLower()
-            if ($valLower -eq "y") { $settings.strip_newlines = $true; Save-Settings }
-            elseif ($valLower -eq "n") { $settings.strip_newlines = $false; Save-Settings }
-            elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
-        }
-       "19" {
+   "18" {
             $val = Read-Host "  Append all characters (current: $($settings.append_all_characters), y/n)"
             $valLower = $val.Trim().ToLower()
             if ($valLower -eq "y") { $settings.append_all_characters = $true; Save-Settings }
             elseif ($valLower -eq "n") { $settings.append_all_characters = $false; Save-Settings }
             elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
         }
+  "19" {
+             $val = Read-Host "  Jamdict sanity check (current: $($settings.jamdict_sanity_check), y/n)"
+             $valLower = $val.Trim().ToLower()
+             if ($valLower -eq "y") { $settings.jamdict_sanity_check = $true; Save-Settings }
+             elseif ($valLower -eq "n") { $settings.jamdict_sanity_check = $false; Save-Settings }
+             elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
+         }
         "20" {
-            $val = Read-Host "  Jamdict sanity check (current: $($settings.jamdict_sanity_check), y/n)"
-            $valLower = $val.Trim().ToLower()
-            if ($valLower -eq "y") { $settings.jamdict_sanity_check = $true; Save-Settings }
-            elseif ($valLower -eq "n") { $settings.jamdict_sanity_check = $false; Save-Settings }
-            elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
-        }
+             $val = Read-Host "  Preserve honorifics (current: $($settings.preserve_honorifics), y/n)"
+             $valLower = $val.Trim().ToLower()
+             if ($valLower -eq "y") { $settings.preserve_honorifics = $true; Save-Settings }
+             elseif ($valLower -eq "n") { $settings.preserve_honorifics = $false; Save-Settings }
+             elseif ($val -and $val.Trim()) { Write-Host "  Invalid input! Use y or n." -ForegroundColor Red }
+         }
         "21" { Manage-Characters }
         default {
             if ($choice -and $choice.Trim()) {

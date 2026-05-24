@@ -153,7 +153,6 @@ class Main_Translator:
         self.parallel_workers = settings.get("parallel_workers", 1)
         self.chunk_size = settings.get("chunk_size", 10)
         self.max_retries = settings.get("max_retries", 3)
-        self.strip_newlines = settings.get("strip_newlines", True)
         self.append_all_characters = settings.get("append_all_characters", False)
         self.jamdict_sanity_check = settings.get("jamdict_sanity_check", False)
         self._lock = threading.Lock()
@@ -214,45 +213,77 @@ class Main_Translator:
             return "openai"
         return None
 
-    def _build_json_schema(self, count):
+    def _build_json_schema(self, count, ids=None):
+        if ids:
+            props = {k: {"type": "string"} for k in ids}
+            req = list(ids)
+        else:
+            props = {"translation": {"type": "string"}}
+            req = ["translation"]
         return {
             "type": "json_schema",
             "json_schema": {
                 "name": "translation_result",
                 "schema": {
                     "type": "object",
-                    "properties": {
-                        "translations": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "minItems": count,
-                            "maxItems": count,
-                        }
-                    },
-                    "required": ["translations"],
+                    "properties": props,
+                    "required": req,
                     "additionalProperties": False,
                 },
                 "strict": True,
             },
         }
 
+    def _is_standalone(self, word, search_text):
+        """Check if word appears as a standalone token, not embedded in a longer word."""
+        suffixes = r'(?:さん|様|さま|君|くん|ちゃん|たん|ち|先生|先輩|社長|部長|どの|兄貴|氏|殿|上|師匠|隊長|公|殿下|陛下|閣下|坊|嬢)|'
+        pattern = re.escape(word) + r'(?:' + suffixes + r'(?=[^\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]|\Z)|(?=[^\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]|\Z))'
+        return bool(re.search(pattern, search_text))
+
+    HONORIFIC_MAP = {
+        'さん': 'san', '様': 'sama', 'さま': 'sama',
+        '君': 'kun', 'くん': 'kun', 'ちゃん': 'chan',
+        'たん': 'tan', 'ち': 'chi',
+        '先生': 'sensei', '先輩': 'senpai', '社長': 'shachou',
+        '部長': 'buchou', 'どの': 'dono', '兄貴': 'aniki',
+        '氏': 'shi', '殿': 'tono', '上': 'ue',
+        '師匠': 'shishou', '隊長': 'taichou', '公': 'kimi',
+        '殿下': 'denka', '陛下': 'heika', '閣下': 'kakkou',
+        '坊': 'bou', '嬢': 'jou',
+    }
+
+    def _match_nickname_with_honorific(self, jp_nick, search_text):
+        """Find jp_nick in search_text and return (full_match, transliterated_honorific) or (jp_nick, None)."""
+        if not self.settings.get("preserve_honorifics", True):
+            return jp_nick, None
+        suffixes = r'(?:さん|様|さま|君|くん|ちゃん|たん|ち|先生|先輩|社長|部長|どの|兄貴|氏|殿|上|師匠|隊長|公|殿下|陛下|閣下|坊|嬢)'
+        pattern = re.escape(jp_nick) + r'(' + suffixes + r')(?=[^\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]|\Z)'
+        m = re.search(pattern, search_text)
+        if m:
+            honorific = m.group(1)
+            eng_hon = self.HONORIFIC_MAP.get(honorific, honorific)
+            return jp_nick + honorific, eng_hon
+        return jp_nick, None
+
     def _build_char_instructions(self, input_text):
-        instructions = set()
+        instructions = []
+        matched_info = []
         search_text = (
             " ".join(input_text) if isinstance(input_text, list) else input_text
         )
 
-        matched_names = []
+        matched_keys = set()
         for original_jp in self.character_memory:
             if original_jp in search_text:
-                matched_names.append(original_jp)
+                matched_keys.add(original_jp)
 
         for original_jp, raw_data in self.character_memory.items():
             char_data = self._substitute(raw_data)
             found_this_char = False
+            nick_parts = []
+            char_nicknames = []
 
             if original_jp in search_text:
-                instructions.add(f"- {original_jp} -> {char_data['name']}")
                 found_this_char = True
 
             nicknames = char_data.get("nickname", [])
@@ -263,26 +294,37 @@ class Main_Translator:
                 match = re.search(r"(.*?) \((.*?)\)", nick)
                 if match:
                     eng_nick, jp_nick = match.group(1).strip(), match.group(2).strip()
-                    if jp_nick in search_text:
-                        is_substring = any(jp_nick in mn and len(jp_nick) < len(mn) for mn in matched_names)
+                    if self._is_standalone(jp_nick, search_text):
+                        other_keys = [mk for mk in matched_keys if mk != original_jp]
+                        is_substring = any(jp_nick in mk and len(jp_nick) < len(mk) for mk in other_keys)
                         if not is_substring:
-                            instructions.add(f"- {jp_nick} -> {eng_nick}")
+                            full_jp, eng_hon = self._match_nickname_with_honorific(jp_nick, search_text)
+                            eng_target = f"{eng_nick}-{eng_hon}" if eng_hon else eng_nick
+                            nick_parts.append(f"{full_jp}->{eng_target}")
+                            char_nicknames.append(eng_nick)
                             found_this_char = True
-                elif nick in search_text:
-                    is_substring = any(nick in mn and len(nick) < len(mn) for mn in matched_names)
+                elif self._is_standalone(nick, search_text):
+                    other_keys = [mk for mk in matched_keys if mk != original_jp]
+                    is_substring = any(nick in mk and len(nick) < len(mk) for mk in other_keys)
                     if not is_substring:
-                        instructions.add(f"- {nick} -> {nick}")
+                        full_jp, eng_hon = self._match_nickname_with_honorific(nick, search_text)
+                        target = f"{nick}-{eng_hon}" if eng_hon else nick
+                        nick_parts.append(f"{full_jp}->{target}")
+                        char_nicknames.append(nick)
                         found_this_char = True
 
             if found_this_char:
-                instructions.add(
-                    f"Context: {char_data['name']} is {char_data.get('gender', 'unknown')}."
-                )
+                gender = char_data.get('gender', '')
+                gender_tag = f" ({gender})" if gender else ""
+                nick_tag = f" | Nicknames: {', '.join(nick_parts)}" if nick_parts else ""
+                line = f"- {original_jp} -> {char_data['name']}{gender_tag}{nick_tag}"
                 notes = char_data.get("notes")
                 if notes and notes.strip():
-                    instructions.add(notes)
+                    line += f" - {notes}"
+                instructions.append(line)
+                matched_info.append((char_data['name'], char_nicknames))
 
-        return instructions
+        return instructions, matched_info
 
     def _substitute(self, value):
         subs = {
@@ -297,31 +339,116 @@ class Main_Translator:
             return {k: self._substitute(v) for k, v in value.items()}
         return value
 
-    def _build_all_char_context(self, matched_names):
-        if not self.append_all_characters or not self.character_memory:
-            return ""
-        lines = []
-        for jp, raw_data in self.character_memory.items():
-            char_data = self._substitute(raw_data)
-            name = char_data["name"]
-            if name not in matched_names:
-                lines.append(f"- {jp} -> {name}")
-        if lines:
-            return "\n\n[ALL CHARACTERS REFERENCE]:\n" + "\n".join(lines)
-        return ""
+    def _log_character_matches(self, matched_info):
+        parts = []
+        for name, nicknames in matched_info:
+            if nicknames:
+                parts.append(f"{name} ({', '.join(nicknames)})")
+            else:
+                parts.append(name)
+        if parts:
+            logger.info("[MAP] Character matches found: %s", ", ".join(parts))
 
     def apply_character_memory(self, input_text):
-        instructions = self._build_char_instructions(input_text)
-        matched_names = set()
-        for instr in instructions:
-            m = re.search(r"->\s*(.+)", instr)
-            if m:
-                matched_names.add(m.group(1).strip())
+        instructions, matched_info = self._build_char_instructions(input_text)
+        self._log_character_matches(matched_info)
         result = ""
         if instructions:
-            result = "\n[CHARACTER GLOSSARY]:\n" + "\n".join(instructions)
-        result += self._build_all_char_context(matched_names)
+            result = "\n[GLOSSARY]:\n" + "\n\n".join(instructions)
         return result
+
+    def _build_batch_char_map(self, list_of_text):
+        instructions, matched_info = self._build_char_instructions(list_of_text)
+        self._log_character_matches(matched_info)
+        result = ""
+        if instructions:
+            result = "\n[GLOSSARY]:\n" + "\n\n".join(instructions)
+        return result
+
+    def _build_uid_format(self, lines, start_idx=0):
+        """Build UID-keyed input format with spacing between lines."""
+        entries = []
+        for i, line in enumerate(lines):
+            uid = f"LINE_{start_idx + i + 1:03d}"
+            escaped = line.replace("\\", "\\\\").replace('"', '\\"')
+            entries.append(f'"{uid}": "{escaped}"')
+        return "\n\n".join(entries)
+
+    def _parse_uid_response(self, raw_response, expected_ids):
+        """Parse UID-keyed JSON response. Extracts translations ordered by expected IDs."""
+        text = raw_response.strip()
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+        text = re.sub(r"\s*```\s*$", "", text, flags=re.MULTILINE)
+        text = text.strip()
+
+        # Fix trailing commas before closing braces: ","\n} → "\n}
+        text = re.sub(r',(\s*[}\]])', r'\1', text)
+
+        # Try JSON parsing first
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict):
+                result = []
+                for uid in expected_ids:
+                    val = obj.get(uid, "")
+                    if val:
+                        result.append(self._strip_uid(str(val)))
+                    else:
+                        result.append("")
+                return self._clean_translations(result)
+        except Exception:
+            pass
+
+        # Fallback: try to find JSON object in text
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            try:
+                obj = json.loads(match.group(0))
+                if isinstance(obj, dict):
+                    result = []
+                    for uid in expected_ids:
+                        val = obj.get(uid, "")
+                        if val:
+                            result.append(self._strip_uid(str(val)))
+                        else:
+                            result.append("")
+                    return self._clean_translations(result)
+            except Exception:
+                pass
+
+        # Fallback: regex extraction
+        found = self._UID_PATTERN.findall(text)
+        if found:
+            uid_map = {uid: self._strip_uid(val.strip()) for uid, val in found}
+            result = []
+            for uid in expected_ids:
+                val = uid_map.get(uid, "")
+                result.append(val if val else "")
+            return self._clean_translations(result)
+
+        # Fallback: LLM ignored UIDs, try old parser (array/numbered)
+        return self._parse_json_response(raw_response)
+
+    def _strip_uid(self, text):
+        """Strip LINE_NNN prefix from translation if LLM included it."""
+        return re.sub(r'^LINE_\d+[:\-=–—]*\s*', '', text.strip())
+
+    def _build_prompt(self, base_instruction, char_map, uid_format, expected_count, ctx_before_block, instruction_text):
+        """Build translation prompt with UID format."""
+        ctx_hint = (
+            f"Lines prefixed with '>' are reference only — do not produce translations for them. "
+            if ctx_before_block else ""
+        )
+        return (
+            f"### INSTRUCTIONS ###\n{base_instruction}\n"
+            f"{char_map}\n\n"
+            f"{instruction_text}\n\n"
+            f"{ctx_hint}\n\n"
+            f"{ctx_before_block}"
+            f"--- TRANSLATE THESE ---\n"
+            f"{uid_format}\n"
+            f"--- END TRANSLATION ---"
+        )
 
     def _looks_like_fragment(self, a, b):
         a_end = a.rstrip()
@@ -354,38 +481,26 @@ class Main_Translator:
         surplus = m - n
         logger.info("REALIGN: Got %d translations for %d inputs, merging %d surplus", m, n, surplus)
 
+        sub_line_counts = [max(1, input_lines[i].count('\n') + 1) for i in range(n)]
+
         out = []
-        i = 0
-        while i < m and len(out) < n:
-            remaining_trans = m - i
-            remaining_out = n - len(out)
-
-            if remaining_out == 1:
-                merged = "\n".join(t.strip() for t in translations[i:])
+        ti = 0
+        remaining_surplus = surplus
+        for i in range(n):
+            is_multiline = '\n' in input_lines[i]
+            if is_multiline and remaining_surplus > 0:
+                absorb = min(sub_line_counts[i] - 1, remaining_surplus)
+                needed = 1 + absorb
+                chunk = translations[ti:ti + needed]
+                if len(chunk) < needed:
+                    chunk = translations[ti:]
+                merged = "\n".join(t.strip() for t in chunk)
                 out.append(merged.strip())
-                break
-
-            if remaining_trans == remaining_out:
-                out.extend(translations[i:i + remaining_out])
-                break
-
-            need_merge = (remaining_trans - 1) >= remaining_out and self._looks_like_fragment(
-                translations[i], translations[i + 1] if i + 1 < m else ""
-            )
-            force_merge = (remaining_trans - 1) < remaining_out
-
-            if need_merge or force_merge:
-                a = translations[i].strip()
-                b = translations[i + 1].strip() if i + 1 < m else ""
-                if self._looks_like_fragment(a, b):
-                    merged = (a + " " + b).strip()
-                else:
-                    merged = (a + "\n" + b).strip()
-                out.append(merged)
-                i += 2
+                ti += len(chunk)
+                remaining_surplus -= (len(chunk) - 1)
             else:
-                out.append(translations[i])
-                i += 1
+                out.append(translations[ti])
+                ti += 1
 
         while len(out) < n:
             out.append("Error")
@@ -394,7 +509,7 @@ class Main_Translator:
             logger.warning("REALIGN: Dropping %d excess translation(s)", excess)
         return out[:n]
 
-    def _build_batches(self, list_of_text):
+    def _build_batches(self, list_of_text, batch_char_map=None):
         n = len(list_of_text)
         if n == 0:
             return []
@@ -416,6 +531,7 @@ class Main_Translator:
                 'context_before': list_of_text[ctx_before_start:batch_start],
                 'context_after': list_of_text[batch_end:ctx_after_end],
                 'translate_lines': list_of_text[batch_start:batch_end],
+                'char_map': batch_char_map,
             })
 
             batch_start = batch_end
@@ -469,11 +585,16 @@ class Main_Translator:
 
         # Fix missing commas between adjacent strings: "str1" "str2" → "str1", "str2"
         text = re.sub(r'"\s+"', '", "', text)
+        # Fix trailing commas before closing braces/brackets: ","\n} → "\n}
+        text = re.sub(r',(\s*[}\]])', r'\1', text)
 
         try:
             obj = json.loads(text)
-            if isinstance(obj, dict) and "translations" in obj:
-                return self._clean_translations(obj["translations"])
+            if isinstance(obj, dict):
+                if "translations" in obj:
+                    return self._clean_translations(obj["translations"])
+                if "translation" in obj:
+                    return self._clean_translations([obj["translation"]])
             if isinstance(obj, list):
                 return self._clean_translations(obj)
         except Exception:
@@ -485,8 +606,11 @@ class Main_Translator:
             if match:
                 try:
                     obj = json.loads(match.group(0))
-                    if isinstance(obj, dict) and "translations" in obj:
-                        return self._clean_translations(obj["translations"])
+                    if isinstance(obj, dict):
+                        if "translations" in obj:
+                            return self._clean_translations(obj["translations"])
+                        if "translation" in obj:
+                            return self._clean_translations([obj["translation"]])
                     if isinstance(obj, list):
                         return self._clean_translations(obj)
                 except Exception:
@@ -502,11 +626,13 @@ class Main_Translator:
     _CJK_PATTERN = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
     _TOKEN_PATTERN = re.compile(r'<\|[^>]*>')
     _THINKING_BLOCK = re.compile(r'<\|be_thought_\|>.*?<\|ee_thought_\|>', re.DOTALL)
+    _UID_PATTERN = re.compile(r'"?(LINE_\d+)"?\s*:\s*"?(.+?)"?(?:\s*,?\s*$)')
 
     def _clean_translations(self, translations):
         """Strip newlines, escape artifacts, CJK chars, thinking blocks, and clean up translations."""
         cleaned = []
         for t in translations:
+            t = self._strip_uid(t)  # remove LINE_NNN prefix if LLM included it
             t = self._THINKING_BLOCK.sub("", t)  # remove model thinking/reasoning blocks
             t = t.replace("\n", " ").replace("\r", " ")
             t = re.sub(r"\\+", "", t)  # remove stray backslashes
@@ -525,12 +651,14 @@ class Main_Translator:
         out_stripped = re.sub(r"[\.\-\!\?\,\:\;\x27\x60\~\u2014\u2013\(\)\[\]{}]", "", stripped)
         if inp_chars > 0 and len(stripped) == 0:
             return True  # any non-empty input with empty output is bad
-        if inp_chars > 10 and len(out_stripped) == 0:
+        # If input is mostly punctuation/symbols, skip content-length checks (dots→dots is valid)
+        inp_stripped = re.sub(r"[\.\-\!\?\,\:\;\x27\x60\~\u2014\u2013\(\)\[\]{}！＂＃＄％＆＇（）＊＋，－．／：；＜＝＞？＠［＼］＾＿｀｛｜｝～。「」『』【】、・〜\u2018\u2019\u201c\u201d\u2010\u2011\u2012\u2015\u2016\u2017\u2026]", "", raw_in.replace(" ", ""))
+        if inp_chars > 10 and len(out_stripped) == 0 and len(inp_stripped) > 2:
             return True
-        if inp_chars > 15 and len(stripped) < 8:
+        if inp_chars > 15 and len(stripped) < 8 and len(inp_stripped) > 2:
             return True
         # Detect split/shifted translations: output suspiciously short for the input
-        if inp_chars > 15 and len(out_stripped) < inp_chars * 0.35:
+        if inp_chars > 15 and len(out_stripped) < inp_chars * 0.35 and len(inp_stripped) > 2:
             return True
         cjk_pattern = re.compile(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]')
         if cjk_pattern.search(stripped):
@@ -596,7 +724,7 @@ class Main_Translator:
         return cleaned
 
     def _process_single_line(self, input_text):
-        input_text = plugins.process_input_text(input_text, self.strip_newlines)
+        input_text = plugins.process_input_text(input_text)
         char_map = self.apply_character_memory(input_text)
 
         current_turn_prompt = (
@@ -639,11 +767,11 @@ class Main_Translator:
                 else []
             )
 
-        processed_translate = [plugins.process_input_text(t, self.strip_newlines) for t in translate_lines]
-        processed_ctx_before = [plugins.process_input_text(t, self.strip_newlines) for t in ctx_before]
-        processed_ctx_after = [plugins.process_input_text(t, self.strip_newlines) for t in ctx_after]
+        processed_translate = [plugins.process_input_text(t) for t in translate_lines]
+        processed_ctx_before = [plugins.process_input_text(t) for t in ctx_before]
+        processed_ctx_after = [plugins.process_input_text(t) for t in ctx_after]
 
-        char_map = self.apply_character_memory(processed_translate)
+        char_map = batch.get('char_map') or self.apply_character_memory(processed_translate)
 
         ctx_before_block = ""
         if processed_ctx_before:
@@ -654,28 +782,20 @@ class Main_Translator:
             )
 
         expected_count = len(processed_translate)
-        translate_lines_text = "\n".join(
-            f"{i+1}. {t}" for i, t in enumerate(processed_translate)
+        uid_format = self._build_uid_format(processed_translate, start_idx)
+        expected_ids = [f"LINE_{start_idx + i + 1:03d}" for i in range(expected_count)]
+
+        initial_instruction = (
+            f'Example Output Format: {{"LINE_XXX": "<translation>", ...}}\n\n'
+            f"Translate the following {expected_count} lines. "
+            f"Each LINE_NNN ID maps to exactly one translation — do NOT split a single line into multiple translations."
+        )
+        current_turn_prompt = self._build_prompt(
+            self.base_instruction, char_map, uid_format, expected_count,
+            ctx_before_block, initial_instruction
         )
 
-        ctx_instruction = (
-            f"Lines prefixed with '>' are reference only — do not produce translations for them. "
-            if ctx_before_block else ""
-        )
-        current_turn_prompt = (
-            f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-            f"{char_map}\n\n"
-            f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
-            f"Translate the following {expected_count} numbered lines. "
-            f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations. "
-            f"{ctx_instruction}\n\n"
-            f"{ctx_before_block}"
-            f"--- TRANSLATE THESE ---\n"
-            f"{translate_lines_text}\n"
-            f"--- END TRANSLATION ---"
-        )
-
-        response_format = self._build_json_schema(expected_count) if self._supports_json_schema else None
+        response_format = self._build_json_schema(expected_count, expected_ids) if self._supports_json_schema else None
 
         translations = []
         result = ""
@@ -684,7 +804,7 @@ class Main_Translator:
                 logger.info("CHUNK %d retry %d/%d (got %d/%d translations)", start_idx, attempt + 1, self.max_retries, len(translations), expected_count)
             final_payload = history + [{"role": "user", "content": current_turn_prompt}]
             result = self.execute(messages=final_payload, response_format=response_format)
-            translations = self._parse_json_response(result)
+            translations = self._parse_uid_response(result, expected_ids)
 
             if len(translations) == expected_count:
                 break
@@ -692,17 +812,14 @@ class Main_Translator:
             if attempt >= self.max_retries - 1:
                 break
 
-            current_turn_prompt = (
-                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                f"{char_map}\n\n"
-                f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
+            retry_instruction = (
+                f'Example Output Format: {{"LINE_XXX": "<translation>", ...}}\n\n'
                 f"You produced {len(translations)} translations for {expected_count} lines. Output EXACTLY {expected_count}. "
-                f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations. "
-                f"{ctx_instruction}\n\n"
-                f"{ctx_before_block}"
-                f"--- TRANSLATE THESE ---\n"
-                f"{translate_lines_text}\n"
-                f"--- END TRANSLATION ---"
+                f"Each LINE_NNN ID maps to exactly one translation — do NOT split a single line into multiple translations."
+            )
+            current_turn_prompt = self._build_prompt(
+                self.base_instruction, char_map, uid_format, expected_count,
+                ctx_before_block, retry_instruction
             )
 
         single_line_pairs = []
@@ -745,28 +862,28 @@ class Main_Translator:
         return start_idx, cleaned, processed_translate, result
 
     def _process_batch_llm(self, list_of_text):
-        processed_input = [plugins.process_input_text(t, self.strip_newlines) for t in list_of_text]
+        processed_input = [plugins.process_input_text(t) for t in list_of_text]
         char_map = self.apply_character_memory(processed_input)
 
         expected_count = len(processed_input)
-        lines_text = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(processed_input))
+        uid_format = self._build_uid_format(processed_input, 0)
+        expected_ids = [f"LINE_{i + 1:03d}" for i in range(expected_count)]
 
-        batch_prompt = (
-            f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-            f"{char_map}\n\n"
-            f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
-            f"Translate ONLY the numbered lines below. Produce EXACTLY {expected_count} translations. "
-            f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations.\n\n"
-            f"--- TRANSLATE THESE ---\n"
-            f"{lines_text}\n"
-            f"--- END TRANSLATION ---"
+        initial_instruction = (
+            f'Example Output Format: {{"LINE_XXX": "<translation>", ...}}\n\n'
+            f"Translate ONLY the lines below. Produce EXACTLY {expected_count} translations. "
+            f"Each LINE_NNN ID maps to exactly one translation — do NOT split a single line into multiple translations."
+        )
+        batch_prompt = self._build_prompt(
+            self.base_instruction, char_map, uid_format, expected_count,
+            "", initial_instruction
         )
 
         history = (
             self.messages[-(self.context_lines * 2) :] if self.context_lines > 0 else []
         )
 
-        response_format = self._build_json_schema(expected_count) if self._supports_json_schema else None
+        response_format = self._build_json_schema(expected_count, expected_ids) if self._supports_json_schema else None
 
         translations = []
         result = ""
@@ -775,7 +892,7 @@ class Main_Translator:
                 logger.info("BATCH_LLM retry %d/%d (got %d/%d translations)", attempt + 1, self.max_retries, len(translations), expected_count)
             final_payload = history + [{"role": "user", "content": batch_prompt}]
             result = self.execute(messages=final_payload, response_format=response_format)
-            translations = self._parse_json_response(result)
+            translations = self._parse_uid_response(result, expected_ids)
 
             if len(translations) == expected_count:
                 break
@@ -783,15 +900,14 @@ class Main_Translator:
             if attempt >= self.max_retries - 1:
                 break
 
-            batch_prompt = (
-                f"### INSTRUCTIONS ###\n{self.base_instruction}\n"
-                f"{char_map}\n\n"
-                f"Example Output Format: {{\"translations\": [\"<line 1 translation>\", \"<line 2 translation>\", ...]}}\n\n"
+            retry_instruction = (
+                f'Example Output Format: {{"LINE_XXX": "<translation>", ...}}\n\n'
                 f"You produced {len(translations)} translations for {expected_count} lines. Output EXACTLY {expected_count}. "
-                f"Each numbered line maps to exactly one translation — do NOT split a single numbered line into multiple translations.\n\n"
-                f"--- TRANSLATE THESE ---\n"
-                f"{lines_text}\n"
-                f"--- END TRANSLATION ---"
+                f"Each LINE_NNN ID maps to exactly one translation — do NOT split a single line into multiple translations."
+            )
+            batch_prompt = self._build_prompt(
+                self.base_instruction, char_map, uid_format, expected_count,
+                "", retry_instruction
             )
 
         single_line_pairs = []
@@ -900,7 +1016,7 @@ class Main_Translator:
                 logger.info("CHUNK %d: max retries reached, marking as error", start_idx)
                 end_idx = batch['end']
                 errors = ["Error"] * (end_idx - start_idx)
-                processed_input = [plugins.process_input_text(t, self.strip_newlines) for t in batch['translate_lines']]
+                processed_input = [plugins.process_input_text(t) for t in batch['translate_lines']]
                 with self._lock:
                     completed_batches.add(start_idx)
                     remaining_batches.discard(start_idx)
@@ -914,7 +1030,8 @@ class Main_Translator:
         if not list_of_text:
             return []
 
-        batches = self._build_batches(list_of_text)
+        batch_char_map = self._build_batch_char_map(list_of_text) if self.append_all_characters else None
+        batches = self._build_batches(list_of_text, batch_char_map)
 
         n = len(list_of_text)
         results = [None] * n
@@ -973,7 +1090,7 @@ class Main_Translator:
         if self._jamdict:
             bad_final = []
             for i in range(n):
-                raw = plugins.process_input_text(list_of_text[i], self.strip_newlines)
+                raw = plugins.process_input_text(list_of_text[i])
                 ok = self._sanity_check(raw, results[i])
                 if not ok:
                     bad_final.append(i)
