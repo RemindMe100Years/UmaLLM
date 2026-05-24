@@ -155,6 +155,7 @@ class Main_Translator:
         self.max_retries = settings.get("max_retries", 3)
         self.append_all_characters = settings.get("append_all_characters", False)
         self.jamdict_sanity_check = settings.get("jamdict_sanity_check", False)
+        self.preserve_honorifics = settings.get("preserve_honorifics", True)
         self._lock = threading.Lock()
 
         # Initialize jamdict if enabled and available (thread-local for SQLite safety)
@@ -254,7 +255,7 @@ class Main_Translator:
 
     def _match_nickname_with_honorific(self, jp_nick, search_text):
         """Find jp_nick in search_text and return (full_match, transliterated_honorific) or (jp_nick, None)."""
-        if not self.settings.get("preserve_honorifics", True):
+        if not self.preserve_honorifics:
             return jp_nick, None
         suffixes = r'(?:さん|様|さま|君|くん|ちゃん|たん|ち|先生|先輩|社長|部長|どの|兄貴|氏|殿|上|師匠|隊長|公|殿下|陛下|閣下|坊|嬢)'
         pattern = re.escape(jp_nick) + r'(' + suffixes + r')(?=[^\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]|\Z)'
