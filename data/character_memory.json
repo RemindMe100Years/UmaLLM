@@ -1,0 +1,1037 @@
+{
+    "characters": {
+        "トレーナー": {
+            "name": "Trainer",
+            "gender": "male"
+        },
+        "アドマイヤグルーヴ": {
+            "name": "Admire Groove",
+            "gender": "female",
+            "nickname": "Aruve (アルヴ)"
+        },
+        "アドマイヤベガ": {
+            "name": "Admire Vega",
+            "gender": "female",
+            "nickname": "Ayabe (アヤベ)"
+        },
+        "アグネスデジタル": {
+            "name": "Agnes Digital",
+            "gender": "female",
+            "nickname": [
+                "Digi-tan (デジたん)",
+                "Digital (デジタル)"
+            ],
+            "notes": "Otaku-type character"
+        },
+        "アグネスタキオン": {
+            "name": "Agnes Tachyon",
+            "gender": "female",
+            "nickname": "Tachyon (タキオン)",
+            "notes": "Mad scientist-type character"
+        },
+        "エアグルーヴ": {
+            "name": "Air Groove",
+            "gender": "female"
+        },
+        "エアメサイア": {
+            "name": "Air Messiah",
+            "gender": "female"
+        },
+        "エアシャカール": {
+            "name": "Air Shakur",
+            "gender": "female",
+            "nickname": [
+                "Shakur (シャカール)",
+                "Shaka (シャカ)",
+                "Shatan (しゃ～たん)"
+            ]
+        },
+        "赤坂美聡": {
+            "name": "Akasaka Misato",
+            "gender": "female"
+        },
+        "秋川やよい": {
+            "name": "Akikawa Yayoi",
+            "gender": "female",
+            "nickname": "Chairwoman (理事長)",
+            "notes": "Translate 理事長 as Chairwoman"
+        },
+        "アーモンドアイ": {
+            "name": "Almond Eye",
+            "gender": "female",
+            "nickname": "Ai (アイ)"
+        },
+        "安心沢刺々美": {
+            "name": "Anshinzawa Sasami",
+            "gender": "female"
+        },
+        "アストンマーチャン": {
+            "name": "Aston Machan",
+            "gender": "female",
+            "nickname": "Machan (マーちゃん)"
+        },
+        "バンブーメモリー": {
+            "name": "Bamboo Memory",
+            "gender": "female"
+        },
+        "ビリーヴ": {
+            "name": "Believe",
+            "gender": "female"
+        },
+        "ビコーペガサス": {
+            "name": "Biko Pegasus",
+            "gender": "female",
+            "nickname": "Biko (ビコー)"
+        },
+        "ビターグラッセ": {
+            "name": "Bitter Glasse",
+            "gender": "female"
+        },
+        "ビワハヤヒデ": {
+            "name": "Biwa Hayahide",
+            "gender": "female"
+        },
+        "ブラストワンピース": {
+            "name": "Blast Onepiece",
+            "gender": "female"
+        },
+        "バブルガムフェロー": {
+            "name": "Bubble Gum Fellow",
+            "gender": "female"
+        },
+        "ブエナビスタ": {
+            "name": "Buena Vista",
+            "gender": "female",
+            "notes": "Childhood friend of the trainer"
+        },
+        "バイアリーターク": {
+            "name": "Byerley Turk",
+            "gender": "female"
+        },
+        "カルストンライトオ": {
+            "name": "Calstone Light O",
+            "gender": "female"
+        },
+        "カジノドライブ": {
+            "name": "Casino Drive",
+            "gender": "female",
+            "notes": "Has some bits of English in her dialogue"
+        },
+        "シーザリオ": {
+            "name": "Cesario",
+            "gender": "female"
+        },
+        "シュヴァルグラン": {
+            "name": "Cheval Grand",
+            "gender": "female",
+            "nickname": [
+                "Chevacchi (シュヴァッチ)",
+                "Cheval (シュヴァル)"
+            ],
+            "notes": "This character is shy and introverted"
+        },
+        "クロノジェネシス": {
+            "name": "Chrono Genesis",
+            "gender": "female"
+        },
+        "コパノリッキー": {
+            "name": "Copano Rickey",
+            "gender": "female",
+            "nickname": "Rickey (リッキー)"
+        },
+        "カレンブーケドール": {
+            "name": "Curren Bouquetd'or",
+            "gender": "female"
+        },
+        "カレンチャン": {
+            "name": "Curren Chan",
+            "gender": "female",
+            "nickname": [
+                "Curren (カレン)",
+                "Curren-chan-senpai (カレンちゃん大先生)",
+                "Chancurre (チャンカーレ)"
+            ],
+            "notes": "This character is a streamer"
+        },
+        "ダイイチルビー": {
+            "name": "Daiichi Ruby",
+            "gender": "female",
+            "nickname": "Ruby (ルビー)",
+            "notes": "Refined-type character"
+        },
+        "ダイタクヘリオス": {
+            "name": "Daitaku Helios",
+            "gender": "female",
+            "nickname": [
+                "Helios (ヘリオス)",
+                "Zuttomo (ズッ友)"
+            ],
+            "notes": "Translate to full brainrot or valley-girl or both, but mostly the former. When this character says お嬢, they are referring to ダイイチルビー. Zuttomo means Bestie"
+        },
+        "ダイワスカーレット": {
+            "name": "Daiwa Scarlet",
+            "gender": "female",
+            "nickname": "Scarlet (スカーレット)"
+        },
+        "ダンツフレーム": {
+            "name": "Dantsu Flame",
+            "gender": "female",
+            "nickname": "Fla-chan (フレちゃん)"
+        },
+        "デアリングハート": {
+            "name": "Daring Heart",
+            "gender": "female"
+        },
+        "デアリングタクト": {
+            "name": "Daring Tact",
+            "gender": "female",
+            "nickname": "Tact (タクト)"
+        },
+        "ダーレーアラビアン": {
+            "name": "Darley Arabian",
+            "gender": "female"
+        },
+        "ドリームジャーニー": {
+            "name": "Dream Journey",
+            "gender": "female",
+            "nickname": "Elder Sister (姉御)"
+        },
+        "ドゥラメンテ": {
+            "name": "Duramente",
+            "gender": "female",
+            "nickname": "Dura (ドゥラ)"
+        },
+        "デュランダル": {
+            "name": "Durandal",
+            "gender": "female"
+        },
+        "エイシンフラッシュ": {
+            "name": "Eishin Flash",
+            "gender": "female",
+            "nickname": "Flash (フラッシュ)"
+        },
+        "エルコンドルパサー": {
+            "name": "El Condor Pasa",
+            "gender": "female",
+            "nickname": "El (エル)"
+        },
+        "エピファネイア": {
+            "name": "Epiphaneia",
+            "gender": "female"
+        },
+        "エスポワールシチー": {
+            "name": "Espoir City",
+            "gender": "female"
+        },
+        "フェノーメノ": {
+            "name": "Fenomeno",
+            "gender": "female",
+            "nickname": [
+                "Meno (メノ)",
+                "Mamechin (マメちん)"
+            ]
+        },
+        "ファインモーション": {
+            "name": "Fine Motion",
+            "gender": "female",
+            "nickname": "Fine (ファイン)",
+            "notes": "Refined-type character"
+        },
+        "フォーエバーヤング": {
+            "name": "Forever Young",
+            "gender": "female",
+            "nickname": "Yanko (ヤン子)"
+        },
+        "フジキセキ": {
+            "name": "Fuji Kiseki",
+            "gender": "female",
+            "nickname": [
+                "Fuji (フジ)",
+                "Dorm Leader (寮長)"
+            ],
+            "notes": "Charismatic character"
+        },
+        "フリオーソ": {
+            "name": "Furioso",
+            "gender": "female",
+            "nickname": "Furio (フリオ)"
+        },
+        "フサイチパンドラ": {
+            "name": "Fusaichi Pandora",
+            "gender": "female",
+            "notes": "Sightly gyaru character"
+        },
+        "ジェンティルドンナ": {
+            "name": "Gentildonna",
+            "gender": "female",
+            "nickname": "Gentil (ジェンティル)",
+            "notes": "Refined-type character"
+        },
+        "ゴドルフィンバルブ": {
+            "name": "Godolphin Barb",
+            "gender": "female"
+        },
+        "ゴールドシチー": {
+            "name": "Gold City",
+            "gender": "female",
+            "nickname": "City (シチー)"
+        },
+        "ゴールドシップ": {
+            "name": "Gold Ship",
+            "gender": "female",
+            "nickname": [
+                "Golshi (ゴルシ)",
+                "Golpippi (ゴルピッピ)"
+            ],
+            "notes": "This character often breaks the 4th wall. Most of her dialogue would probably make no sense. Translate literally or localize depending on context"
+        },
+        "グランアレグリア": {
+            "name": "Gran Alegria",
+            "gender": "female",
+            "notes": "Loves the word 'Mile'. Often says 'Oha-mile'"
+        },
+        "グラスワンダー": {
+            "name": "Grass Wonder",
+            "gender": "female",
+            "nickname": "Grass (グラス)"
+        },
+        "ハイセイコー": {
+            "name": "Haiseiko",
+            "gender": "female"
+        },
+        "ハッピーミーク": {
+            "name": "Happy Meek",
+            "gender": "female"
+        },
+        "ハルウララ": {
+            "name": "Haru Urara",
+            "gender": "female",
+            "nickname": "Urara (ウララ)",
+            "notes": "Cheerful girl that never gives up"
+        },
+        "駿川たづな": {
+            "name": "Hayakawa Tazuna ",
+            "gender": "female"
+        },
+        "ヒシアケボノ": {
+            "name": "Hishi Akebono",
+            "gender": "female",
+            "nickname": [
+                "Akebono (アケボノ)",
+                "Bono (ボノ)"
+            ]
+        },
+        "ヒシアマゾン": {
+            "name": "Hishi Amazon",
+            "gender": "female",
+            "nickname": "Hishiama (ヒシアマ)"
+        },
+        "ヒシミラクル": {
+            "name": "Hishi Miracle",
+            "gender": "female",
+            "nickname": "Mirako (ミラ子)"
+        },
+        "ホッコータルマエ": {
+            "name": "Hokko Tarumae",
+            "gender": "female",
+            "nickname": "Tarumae (タルマエ)"
+        },
+        "保科健子": {
+            "name": "Hoshina Kiyoko",
+            "gender": "female",
+            "nickname": [
+                "Proprietress (女将)",
+                "Kiyoko (健子)"
+            ],
+            "notes": "Proprietress of Yukoma Inn"
+        },
+        "細江純子": {
+            "name": "Hosoe Junko",
+            "gender": "female"
+        },
+        "イクノディクタス": {
+            "name": "Ikuno Dictus",
+            "gender": "female",
+            "nickname": "Ikuno (イクノ)"
+        },
+        "イナリワン": {
+            "name": "Inari One",
+            "gender": "female",
+            "nickname": "Inari (イナリ)"
+        },
+        "アイネスフウジン": {
+            "name": "Ines Fujin",
+            "gender": "female",
+            "nickname": "Ines (アイネス)"
+        },
+        "ジャングルポケット": {
+            "name": "Jungle Pocket",
+            "gender": "female",
+            "nickname": [
+                "Pokke (ポッケ)",
+                "Pocket (ポケット)"
+            ]
+        },
+        "ケイエスミラクル": {
+            "name": "K.S.Miracle",
+            "gender": "female",
+            "nickname": "Kei (ケイ)"
+        },
+        "樫本理子": {
+            "name": "Kashimoto Riko",
+            "gender": "female"
+        },
+        "カツラギエース": {
+            "name": "Katsuragi Ace",
+            "gender": "female",
+            "nickname": [
+                "Ace (エース)",
+                "Ragi-Paisen (ラギぱいせん)",
+                "Ragiragi (ラギラギ )"
+            ]
+        },
+        "カワカミプリンセス": {
+            "name": "Kawakami Princess",
+            "gender": "female",
+            "notes": "Ojou-sama type character"
+        },
+        "キングヘイロー": {
+            "name": "King Halo",
+            "gender": "female",
+            "nickname": "King (キング)"
+        },
+        "桐生院葵": {
+            "name": "Kiryuin Aoi",
+            "gender": "female"
+        },
+        "キセキ": {
+            "name": "Kiseki",
+            "gender": "female"
+        },
+        "キタサンブラック": {
+            "name": "Kitasan Black",
+            "gender": "female",
+            "nickname": "Kita (キタ)"
+        },
+        "ライトハロー": {
+            "name": "Light Hello",
+            "gender": "female"
+        },
+        "リトルココン": {
+            "name": "Little Cocon",
+            "gender": "female"
+        },
+        "ロゴタイプ": {
+            "name": "Logotype",
+            "gender": "female"
+        },
+        "ラヴズオンリーユー": {
+            "name": "Loves Only You",
+            "gender": "female",
+            "nickname": [
+                "Loves (ラヴズ)",
+                "Love (ラヴ)"
+            ],
+            "notes": "This character is a streamer"
+        },
+        "ラッキーライラック": {
+            "name": "Lucky Lilac",
+            "gender": "female",
+            "nickname": "Lala (ララ)"
+        },
+        "マンハッタンカフェ": {
+            "name": "Manhattan Cafe",
+            "gender": "female",
+            "notes": "Ominous but actually caring character, has a \"friend\""
+        },
+        "マルシュロレーヌ": {
+            "name": "Marche Lorraine",
+            "gender": "female",
+            "nickname": "Maru (マル)"
+        },
+        "マルゼンスキー": {
+            "name": "Maruzensky",
+            "gender": "female",
+            "nickname": "Maruzen (マルゼン)",
+            "notes": "Very much behind the times. Depending on context, can even sound like an old person"
+        },
+        "マーベラスサンデー": {
+            "name": "Marvelous Sunday",
+            "gender": "female",
+            "nickname": [
+                "Marvelous (マーベラス)",
+                "Marve (マベ)"
+            ]
+        },
+        "マチカネフクキタル": {
+            "name": "Matikanefukukitaru",
+            "gender": "female",
+            "nickname": "Fukukitaru (フクキタル)"
+        },
+        "マチカネタンホイザ": {
+            "name": "Matikanetannhauser",
+            "gender": "female",
+            "nickname": [
+                "Tannhauser (タンホイザ)",
+                "Machitan (マチタン)",
+                "Omachi (おマチ)"
+            ]
+        },
+        "マヤノトップガン": {
+            "name": "Mayano Top Gun",
+            "gender": "female",
+            "nickname": "Maya (マヤ)"
+        },
+        "メイショウドトウ": {
+            "name": "Meisho Doto",
+            "gender": "female",
+            "notes": "Shy and apologizes a lot"
+        },
+        "メジロアルダン": {
+            "name": "Mejiro Ardan",
+            "gender": "female",
+            "nickname": "Ardan (アルダン)",
+            "notes": "Refined-type character"
+        },
+        "メジロブライト": {
+            "name": "Mejiro Bright",
+            "gender": "female",
+            "nickname": "Bright (ブライト)",
+            "notes": "Refined-type character, Gives off an 'Airheaded' vibe, but is actually smart"
+        },
+        "メジロドーベル": {
+            "name": "Mejiro Dober",
+            "gender": "female",
+            "nickname": "Dober (ドーベル)"
+        },
+        "メジロマックイーン": {
+            "name": "Mejiro McQueen",
+            "gender": "female",
+            "nickname": "McQueen (マックイーン)",
+            "notes": "Refined-type character"
+        },
+        "メジロパーマー": {
+            "name": "Mejiro Palmer",
+            "gender": "female",
+            "nickname": "Palmer (パーマー)",
+            "notes": "Speaks in semi-brainrot, but still has traces of being refined depending on the text. Zuttomo means Bestie"
+        },
+        "メジロラモーヌ": {
+            "name": "Mejiro Ramonu",
+            "gender": "female",
+            "nickname": "Ramonu (ラモーヌ)",
+            "notes": "Refined-type character, but can get dominant and competitive"
+        },
+        "メジロライアン": {
+            "name": "Mejiro Ryan",
+            "gender": "female",
+            "nickname": "Ryan (ライアン)"
+        },
+        "ミホノブルボン": {
+            "name": "Mihono Bourbon",
+            "gender": "female",
+            "nickname": "Bourbon (ブルボン)",
+            "notes": "Robotic-type character that calls the Trainer 'Master'"
+        },
+        "モンジェウ": {
+            "name": "Montjeu",
+            "gender": "female"
+        },
+        "ミスターシービー": {
+            "name": "Mr. C.B.",
+            "gender": "female",
+            "nickname": "C.B. (シービー)"
+        },
+        "ナカヤマフェスタ": {
+            "name": "Nakayama Festa",
+            "gender": "female"
+        },
+        "ナリタブライアン": {
+            "name": "Narita Brian",
+            "gender": "female"
+        },
+        "ナリタタイシン": {
+            "name": "Narita Taishin",
+            "gender": "female"
+        },
+        "ナリタトップロード": {
+            "name": "Narita Top Road",
+            "gender": "female",
+            "nickname": "Top Road (トップロード)"
+        },
+        "ネオユニヴァース": {
+            "name": "Neo Universe",
+            "gender": "female",
+            "nickname": "Yuni (ユニ)",
+            "notes": "Often speaks robotically or in acronyms. The acronyms should be translated to the closest {output_language} equivalent. スフィーラ -> Sphaera"
+        },
+        "ナイスネイチャ": {
+            "name": "Nice Nature",
+            "gender": "female"
+        },
+        "ニシノフラワー": {
+            "name": "Nishino Flower",
+            "gender": "female",
+            "notes": "Cutesy-type character depending on text"
+        },
+        "ノーリーズン": {
+            "name": "No Reason",
+            "gender": "female"
+        },
+        "ノースフライト": {
+            "name": "North Flight",
+            "gender": "female",
+            "nickname": "Fuu-chan (フーちゃん)"
+        },
+        "オグリキャップ": {
+            "name": "Oguri Cap",
+            "gender": "female",
+            "nickname": "Ogurin (オグリン)"
+        },
+        "オルフェーヴル": {
+            "name": "Orfevre",
+            "gender": "female",
+            "nickname": "Orfe (オルフェ)",
+            "notes": "Dominant-type character that speaks like a King"
+        },
+        "乙名史悦子": {
+            "name": "Otonashi Etsuko",
+            "gender": "female"
+        },
+        "レッドディザイア": {
+            "name": "Red Desire",
+            "gender": "female"
+        },
+        "ラインクラフト": {
+            "name": "Rhein Kraft",
+            "gender": "female",
+            "nickname": "Kraft (クラフト)"
+        },
+        "ライスシャワー": {
+            "name": "Rice Shower",
+            "gender": "female",
+            "notes": "This character is shy and submissive"
+        },
+        "リガントーナ": {
+            "name": "Rigantona",
+            "gender": "female"
+        },
+        "ローズキングダム": {
+            "name": "Rose Kingdom",
+            "gender": "female"
+        },
+        "ロイスアンドロイス": {
+            "name": "Royce and Royce",
+            "gender": "female"
+        },
+        "ルーラーシップ": {
+            "name": "Rulership",
+            "gender": "female"
+        },
+        "セントライト": {
+            "name": "Saint Lite",
+            "gender": "female"
+        },
+        "サクラバクシンオー": {
+            "name": "Sakura Bakushin O",
+            "gender": "female",
+            "nickname": "Bakushin O (バクシンオー)"
+        },
+        "サクラチトセオー": {
+            "name": "Sakura Chitose O",
+            "gender": "female"
+        },
+        "サクラチヨノオー": {
+            "name": "Sakura Chiyono O",
+            "gender": "female",
+            "nickname": "Chiyo (チヨ)"
+        },
+        "サクラローレル": {
+            "name": "Sakura Laurel",
+            "gender": "female"
+        },
+        "サムソンビッグ": {
+            "name": "Samson Big",
+            "gender": "female"
+        },
+        "佐岳メイ": {
+            "name": "Satake Mei",
+            "gender": "female",
+            "nickname": [
+                "Satake (佐岳)",
+                "Mei (Mei)"
+            ]
+        },
+        "サトノクラウン": {
+            "name": "Satono Crown",
+            "gender": "female"
+        },
+        "サトノダイヤモンド": {
+            "name": "Satono Diamond",
+            "gender": "female",
+            "nickname": "Dia (ダイヤ)",
+            "notes": "Refined-type character"
+        },
+        "シーキングザパール": {
+            "name": "Seeking the Pearl",
+            "gender": "female"
+        },
+        "セイウンスカイ": {
+            "name": "Seiun Sky",
+            "gender": "female",
+            "nickname": "Sei (セイ)",
+            "notes": "Often speaks in a relaxed manner, but can get serious if the situation calls for it"
+        },
+        "シンコウウインディ": {
+            "name": "Shinko Windy",
+            "gender": "female",
+            "nickname": "Windy (ウインディ)"
+        },
+        "シラオキ": {
+            "name": "Shiraoki",
+            "gender": "female"
+        },
+        "サイレンススズカ": {
+            "name": "Silence Suzuka",
+            "gender": "female",
+            "notes": "景色 = Scenery"
+        },
+        "シリウスシンボリ": {
+            "name": "Sirius Symboli",
+            "gender": "female",
+            "nickname": "Sirius (シリウス)",
+            "notes": "Dominant-type character"
+        },
+        "スマートファルコン": {
+            "name": "Smart Falcon",
+            "gender": "female",
+            "nickname": "Falco (ファル子)",
+            "notes": "Idol-type character"
+        },
+        "ソノンエルフィー": {
+            "name": "Sonon Elfie",
+            "gender": "female"
+        },
+        "サウンズオブアース": {
+            "name": "Sounds of Earth",
+            "gender": "female",
+            "notes": "Incorporates bits of Italian in dialogue. Just leave those as is."
+        },
+        "スペシャルウィーク": {
+            "name": "Special Week",
+            "gender": "female",
+            "nickname": "Spe (スペ)"
+        },
+        "スピードシンボリ": {
+            "name": "Speed Symboli",
+            "gender": "female"
+        },
+        "ST-2": {
+            "name": "ST-2",
+            "gender": "female",
+            "nickname": "Saty (サティ)",
+            "notes": "Also called Saty (サティ)"
+        },
+        "ステイゴールド": {
+            "name": "Stay Gold",
+            "gender": "female",
+            "nickname": "Stego (ステゴ)"
+        },
+        "スティルインラブ": {
+            "name": "Still in Love",
+            "gender": "female",
+            "nickname": "Still (スティル)",
+            "notes": "Split personality, one is meek and shy and one is crazy"
+        },
+        "シュガーライツ": {
+            "name": "Sugar Lights",
+            "gender": "female",
+            "nickname": "Professor (博士)"
+        },
+        "スーパークリーク": {
+            "name": "Super Creek",
+            "gender": "female",
+            "nickname": "Creek (クリーク)",
+            "notes": "Mommy-type character"
+        },
+        "スイープトウショウ": {
+            "name": "Sweep Tosho",
+            "gender": "female",
+            "nickname": "Sweepy (スイーピー)",
+            "notes": "This character is bratty"
+        },
+        "シンボリクリスエス": {
+            "name": "Symboli Kris S",
+            "gender": "female"
+        },
+        "シンボリルドルフ": {
+            "name": "Symboli Rudolf",
+            "gender": "female",
+            "nickname": "President (会長)",
+            "notes": "Often makes horrible puns. Translate these puns in a way that still makes sense in {output_language}"
+        },
+        "テイエムオペラオー": {
+            "name": "T.M. Opera O",
+            "gender": "female",
+            "notes": "Often full of herself, gaudy"
+        },
+        "タイキシャトル": {
+            "name": "Taiki Shuttle",
+            "gender": "female",
+            "notes": "Has some bits of English in her dialogue. Talks like a foreigner (Depicted by Japanese words spoken in Katakana such as 'デース' and 'ハイハーイ！'. Figure out the Japanese meaning by converting to Hiragana and translating from there while making sure the final translation still makes sense grammatically)"
+        },
+        "タマモクロス": {
+            "name": "Tamamo Cross",
+            "gender": "female",
+            "nickname": "Tama (タマ)",
+            "notes": "Speaks in Kansai Dialect. Kansai Dialect should be translated to Southern American dialect. Non-Kansai dialect dialogue should be translated like normal."
+        },
+        "タニノギムレット": {
+            "name": "Tanino Gimlet",
+            "gender": "female"
+        },
+        "タップダンスシチー": {
+            "name": "Tap Dance City",
+            "gender": "female"
+        },
+        "トウカイテイオー": {
+            "name": "Tokai Teio",
+            "gender": "female"
+        },
+        "トーセンジョーダン": {
+            "name": "Tosen Jordan",
+            "gender": "female",
+            "nickname": "Jordan (ジョーダン)",
+            "notes": "Gyaru-type character"
+        },
+        "トランセンド": {
+            "name": "Transcend",
+            "gender": "female",
+            "notes": "Casual character that talks in a chill manner"
+        },
+        "都留岐涼花": {
+            "name": "Tsurugi Ryoka",
+            "gender": "female"
+        },
+        "ツルマルツヨシ": {
+            "name": "Tsurumaru Tsuyoshi",
+            "gender": "female",
+            "nickname": [
+                "Tsuru (ツル)",
+                "Tsuyoshi (ツヨシ)"
+            ]
+        },
+        "タッカーブライン": {
+            "name": "Tucker Bryne",
+            "gender": "female"
+        },
+        "ツインターボ": {
+            "name": "Twin Turbo",
+            "gender": "female"
+        },
+        "ヴェニュスパーク": {
+            "name": "Venus Paques",
+            "gender": "female"
+        },
+        "ヴィルシーナ": {
+            "name": "Verxina",
+            "gender": "female"
+        },
+        "ヴィクトワールピサ": {
+            "name": "Victoire Pisa",
+            "gender": "female"
+        },
+        "ヴィブロス": {
+            "name": "Vivlos",
+            "gender": "female",
+            "notes": "Imouto-type character"
+        },
+        "ウオッカ": {
+            "name": "Vodka",
+            "gender": "female"
+        },
+        "ウインバリアシオン": {
+            "name": "Win Variation",
+            "gender": "female",
+            "nickname": "Shion (シオン)",
+            "notes": "Often ends her sentences with -ssu"
+        },
+        "ウイニングチケット": {
+            "name": "Winning Ticket",
+            "gender": "female",
+            "nickname": [
+                "Ticket (チケット)",
+                "Tickezo (チケゾー)"
+            ],
+            "notes": "Crybaby"
+        },
+        "ワンダーアキュート": {
+            "name": "Wonder Acute",
+            "gender": "female"
+        },
+        "ヤエノムテキ": {
+            "name": "Yaeno Muteki",
+            "gender": "female"
+        },
+        "ヤマニンゼファー": {
+            "name": "Yamanin Zephyr",
+            "gender": "female"
+        },
+        "ユキノビジン": {
+            "name": "Yukino Bijin",
+            "gender": "female",
+            "notes": "Speaks like she's from the countryside"
+        },
+        "ユノハナブルーム": {
+            "name": "Yunohana Bloom",
+            "gender": "female",
+            "nickname": "Young Proprietress (若女将)",
+            "notes": "Young Proprietress of Yukoma Inn"
+        },
+        "ゼンノロブロイ": {
+            "name": "Zenno Rob Roy",
+            "gender": "female"
+        },
+        "有馬記念": {
+            "name": "Arima Kinen",
+            "gender": "Not Applicable"
+        },
+        "朝日杯フューチュリティステークス": {
+            "name": "Asahi Hai Futurity Stakes",
+            "gender": "Not Applicable"
+        },
+        "Breeders' Cup": {
+            "name": "Breeders' Cup",
+            "gender": "Not Applicable",
+            "notes": "Just leave this as is"
+        },
+        "チャンピオンズカップ": {
+            "name": "Champions Cup",
+            "gender": "Not Applicable"
+        },
+        "フェブラリーステークス": {
+            "name": "February Stakes",
+            "gender": "Not Applicable"
+        },
+        "阪神ジュベナイルフィリーズ": {
+            "name": "Hanshin Juvenile Fillies",
+            "gender": "Not Applicable"
+        },
+        "ホープフルステークス": {
+            "name": "Hopeful Stakes",
+            "gender": "Not Applicable"
+        },
+        "ジャパンカップ": {
+            "name": "Japan Cup",
+            "gender": "Not Applicable"
+        },
+        "日本ダービー": {
+            "name": "Japanese Derby",
+            "gender": "Not Applicable"
+        },
+        "菊花賞": {
+            "name": "Kikuka Sho",
+            "gender": "Not Applicable"
+        },
+        "マイルチャンピオンシップ": {
+            "name": "Mile Championship",
+            "gender": "Not Applicable"
+        },
+        "NHKマイルカップ": {
+            "name": "NHK Mile Cup",
+            "gender": "Not Applicable"
+        },
+        "オークス": {
+            "name": "Oaks",
+            "gender": "Not Applicable"
+        },
+        "桜花賞": {
+            "name": "Oka Sho",
+            "gender": "Not Applicable"
+        },
+        "大阪杯": {
+            "name": "Osaka Hai",
+            "gender": "Not Applicable"
+        },
+        "アベイ・ド・ロンシャン賞": {
+            "name": "Prix de l'Abbaye de Longchamp",
+            "gender": "Not Applicable"
+        },
+        "凱旋門賞": {
+            "name": "Prix de l'Arc de Triomphe",
+            "gender": "Not Applicable"
+        },
+        "フォワ賞": {
+            "name": "Prix Foy",
+            "gender": "Not Applicable"
+        },
+        "ジャック・ル・マロワ賞": {
+            "name": "Prix Jacques Le Marois",
+            "gender": "Not Applicable"
+        },
+        "モーリス・ド・ゲスト賞": {
+            "name": "Prix Maurice de Gheest",
+            "gender": "Not Applicable"
+        },
+        "ニエル賞": {
+            "name": "Prix Niel",
+            "gender": "Not Applicable"
+        },
+        "ヴェルメイユ賞": {
+            "name": "Prix Vermeille",
+            "gender": "Not Applicable"
+        },
+        "エリザベス女王杯": {
+            "name": "Queen Elizabeth II Cup",
+            "gender": "Not Applicable"
+        },
+        "皐月賞": {
+            "name": "Satsuki Sho",
+            "gender": "Not Applicable"
+        },
+        "秋華賞": {
+            "name": "Shuka Sho",
+            "gender": "Not Applicable"
+        },
+        "スプリンターズステークス": {
+            "name": "Sprinters Stakes",
+            "gender": "Not Applicable"
+        },
+        "高松宮記念": {
+            "name": "Takamatsunomiya Kinen",
+            "gender": "Not Applicable"
+        },
+        "宝塚記念": {
+            "name": "Takarazuka Kinen",
+            "gender": "Not Applicable"
+        },
+        "天皇賞（秋）": {
+            "name": "Tenno Sho (Autumn)",
+            "gender": "Not Applicable"
+        },
+        "天皇賞（春）": {
+            "name": "Tenno Sho (Spring)",
+            "gender": "Not Applicable"
+        },
+        "トレセン": {
+            "name": "Tracen",
+            "gender": "Not Applicable"
+        },
+        "ウマ娘": {
+            "name": "Uma Musume",
+            "gender": "Not Applicable"
+        },
+        "ウマい": {
+            "name": "Umazing",
+            "gender": "Not Applicable"
+        },
+        "ヴィクトリアマイル": {
+            "name": "Victoria Mile",
+            "gender": "Not Applicable"
+        },
+        "安田記念": {
+            "name": "Yasuda Kinen",
+            "gender": "Not Applicable"
+        }
+    }
+}

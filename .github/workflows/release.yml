@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Get tag name
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_OUTPUT
+
+      - name: Zip package
+        run: |
+          Compress-Archive -Path scripts,data,configure.bat,launch.bat,setup.bat,README.md -DestinationPath "UmaLLM-${{ steps.tag.outputs.TAG }}.zip"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: UmaLLM-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

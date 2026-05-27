@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.vscode/
+.idea/
+*.log
+README-draft.md
